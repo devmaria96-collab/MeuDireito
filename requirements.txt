@@ -1,0 +1,14 @@
+openai-agents==0.24.0
+litellm==1.109.1
+fastapi==0.163.1
+uvicorn==0.54.0
+python-dotenv==1.2.4
+tzdata==2026.6
+python-docx==1.2.0
+fpdf2==2.9.0
+sqlalchemy==2.1.8
+psycopg[binary]==3.3.9
+alembic==1.20.1
+argon2-cffi==25.1.0
+pillow==13.0.0
+python-multipart==0.0.34

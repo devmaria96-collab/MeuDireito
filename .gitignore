@@ -1,0 +1,27 @@
+# Segredos
+.env
+
+# Avaliações locais, sem o texto das conversas
+dados/
+
+# Ambiente virtual
+.venv/
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Frontend
+node_modules/
+dist/
+
+# Arquivos temporários
+*.tmp
+*.temp
+*.log
+*.swp
+*~
+.DS_Store
+Thumbs.db
