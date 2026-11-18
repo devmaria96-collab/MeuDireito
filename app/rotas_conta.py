@@ -20,6 +20,7 @@ from app.contas import (
     encerrar_sessao,
     imagem_do_usuario,
     nome_publico,
+    perfil_de,
     retirar_imagem,
     definir_imagem,
     sessao_do_token,
@@ -83,17 +84,19 @@ def secrets_iguais(esquerda: str, direita: str) -> bool:
 
 
 def _publico(usuario: Usuario, csrf: str | None) -> dict[str, object]:
+    perfil = perfil_de(usuario)
     return {
         "autenticado": True,
         "contas_disponiveis": True,
+        "sincronizacao_disponivel": True,
         "csrf": csrf,
         "usuario": {
             "nome_exibicao": nome_publico(usuario),
             "email": usuario.email,
-            "perfil_juridico": usuario.perfil_juridico,
-            "tema": usuario.tema,
-            "tipo_avatar": usuario.tipo_avatar,
-            "avatar_codigo": usuario.avatar_codigo,
+            "perfil_juridico": perfil.perfil_juridico,
+            "tema": perfil.tema,
+            "tipo_avatar": perfil.tipo_avatar,
+            "avatar_codigo": perfil.avatar_codigo,
         },
     }
 
@@ -114,12 +117,24 @@ def _definir_cookie(resposta: Response, token: str, pedido: Request) -> None:
 @router.get("/sessao")
 def ler_sessao(pedido: Request) -> dict[str, object]:
     if not contas_disponiveis():
-        return {"autenticado": False, "contas_disponiveis": False, "csrf": None, "usuario": None}
+        return {
+            "autenticado": False,
+            "contas_disponiveis": False,
+            "sincronizacao_disponivel": False,
+            "csrf": None,
+            "usuario": None,
+        }
     db = _banco()
     try:
         encontrada = sessao_do_token(db, pedido.cookies.get(COOKIE))
         if encontrada is None or encontrada.usuario is None:
-            return {"autenticado": False, "contas_disponiveis": True, "csrf": None, "usuario": None}
+            return {
+                "autenticado": False,
+                "contas_disponiveis": True,
+                "sincronizacao_disponivel": False,
+                "csrf": None,
+                "usuario": None,
+            }
         return _publico(encontrada.usuario, encontrada.csrf)
     finally:
         db.close()
@@ -135,10 +150,11 @@ def criar_conta(entrada: CadastroEntrada, pedido: Request, resposta: Response) -
         except ValueError as erro:
             raise HTTPException(status_code=422, detail=str(erro)) from None
         token, csrf = abrir_sessao(db, usuario)
+        corpo = _publico(usuario, csrf)
     finally:
         db.close()
     _definir_cookie(resposta, token, pedido)
-    return _publico(usuario, csrf)
+    return corpo
 
 
 @router.post("/entrar")
@@ -151,10 +167,11 @@ def entrar(entrada: EntradaLogin, pedido: Request, resposta: Response) -> dict[s
         except ValueError as erro:
             raise HTTPException(status_code=401, detail=str(erro)) from None
         token, csrf = abrir_sessao(db, usuario)
+        corpo = _publico(usuario, csrf)
     finally:
         db.close()
     _definir_cookie(resposta, token, pedido)
-    return _publico(usuario, csrf)
+    return corpo
 
 
 @router.post("/sair")

@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.avatares import PADRAO, avatar_valido, guardar_imagem, ler_imagem, remover_imagem
-from app.modelos import Sessao, Usuario
+from app.modelos import Perfil, Sessao, Usuario
 
 _HASHER = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1, type=Type.ID)
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -62,6 +62,16 @@ def nome_publico(usuario: Usuario) -> str:
     return usuario.nome_exibicao
 
 
+def perfil_de(usuario: Usuario) -> Perfil:
+    if usuario.perfil is None:
+        raise RuntimeError("Perfil ausente.")
+    return usuario.perfil
+
+
+def referencia_da_foto(usuario: Usuario) -> str:
+    return f"{usuario.id.hex}.webp"
+
+
 def cadastrar(db: Session, email: str, senha: str, confirmar: str, nome: str | None) -> Usuario:
     if senha != confirmar:
         raise ValueError("A confirmação da senha não confere.")
@@ -76,15 +86,20 @@ def cadastrar(db: Session, email: str, senha: str, confirmar: str, nome: str | N
         email=endereco,
         senha_hash=_HASHER.hash(senha),
         nome_exibicao="Usuário",
-        perfil_juridico="cidadao",
-        tema=None,
-        tipo_avatar="biblioteca",
-        avatar_codigo=PADRAO,
-        tem_imagem=False,
         criado_em=agora,
         atualizado_em=agora,
     )
     usuario.nome_exibicao = validar_nome(nome, usuario.id)
+    usuario.perfil = Perfil(
+        id=uuid.uuid4(),
+        usuario_id=usuario.id,
+        avatar_codigo=PADRAO,
+        tipo_avatar="biblioteca",
+        foto_referencia=None,
+        perfil_juridico="cidadao",
+        tema=None,
+        consentimento_sincronizacao=False,
+    )
     db.add(usuario)
     db.commit()
     db.refresh(usuario)
@@ -134,20 +149,23 @@ def sessao_do_token(db: Session, token: str | None) -> Sessao | None:
     encontrada = db.scalar(select(Sessao).where(Sessao.token_hash == _hash_token(token)))
     if encontrada is None:
         return None
-    expira = encontrada.expira_em
-    if expira.tzinfo is None:
-        expira = expira.replace(tzinfo=timezone.utc)
-    if expira < _agora():
-        db.delete(encontrada)
-        db.commit()
+    if _ciente(encontrada.expira_em) < _agora():
+        return None
+    if encontrada.revogada_em is not None:
         return None
     return encontrada
+
+
+def _ciente(momento: datetime) -> datetime:
+    if momento.tzinfo is None:
+        return momento.replace(tzinfo=timezone.utc)
+    return momento
 
 
 def encerrar_sessao(db: Session, token: str | None) -> None:
     encontrada = sessao_do_token(db, token)
     if encontrada is not None:
-        db.delete(encontrada)
+        encontrada.revogada_em = _agora()
         db.commit()
 
 
@@ -161,24 +179,25 @@ def atualizar_perfil(
     avatar_codigo: str | None = None,
     limpar_tema: bool = False,
 ) -> Usuario:
+    perfil = perfil_de(usuario)
     if nome is not None:
         usuario.nome_exibicao = validar_nome(nome, usuario.id)
     if perfil_juridico is not None:
         if perfil_juridico not in _PERFIS:
             raise ValueError("Escolha estudante, profissional jurídico ou cidadão.")
-        usuario.perfil_juridico = perfil_juridico
+        perfil.perfil_juridico = perfil_juridico
     if limpar_tema:
-        usuario.tema = None
+        perfil.tema = None
     elif tema is not None:
         if tema not in _TEMAS:
             raise ValueError("O tema precisa ser claro ou escuro.")
-        usuario.tema = tema
+        perfil.tema = tema
     if avatar_codigo is not None:
         if not avatar_valido(avatar_codigo):
             raise ValueError("Escolha um dos avatares jurídicos.")
-        usuario.avatar_codigo = avatar_codigo
-        usuario.tipo_avatar = "biblioteca"
-        usuario.tem_imagem = False
+        perfil.avatar_codigo = avatar_codigo
+        perfil.tipo_avatar = "biblioteca"
+        perfil.foto_referencia = None
         remover_imagem(usuario.id.hex)
     usuario.atualizado_em = _agora()
     db.commit()
@@ -188,8 +207,9 @@ def atualizar_perfil(
 
 def definir_imagem(db: Session, usuario: Usuario, bruto: bytes) -> Usuario:
     guardar_imagem(usuario.id.hex, bruto)
-    usuario.tipo_avatar = "imagem"
-    usuario.tem_imagem = True
+    perfil = perfil_de(usuario)
+    perfil.tipo_avatar = "imagem"
+    perfil.foto_referencia = referencia_da_foto(usuario)
     usuario.atualizado_em = _agora()
     db.commit()
     db.refresh(usuario)
@@ -197,11 +217,12 @@ def definir_imagem(db: Session, usuario: Usuario, bruto: bytes) -> Usuario:
 
 
 def retirar_imagem(db: Session, usuario: Usuario) -> Usuario:
+    perfil = perfil_de(usuario)
     remover_imagem(usuario.id.hex)
-    usuario.tipo_avatar = "biblioteca"
-    usuario.tem_imagem = False
-    if not avatar_valido(usuario.avatar_codigo):
-        usuario.avatar_codigo = PADRAO
+    perfil.tipo_avatar = "biblioteca"
+    perfil.foto_referencia = None
+    if not avatar_valido(perfil.avatar_codigo):
+        perfil.avatar_codigo = PADRAO
     usuario.atualizado_em = _agora()
     db.commit()
     db.refresh(usuario)
@@ -209,6 +230,7 @@ def retirar_imagem(db: Session, usuario: Usuario) -> Usuario:
 
 
 def imagem_do_usuario(usuario: Usuario) -> bytes | None:
-    if not usuario.tem_imagem:
+    perfil = usuario.perfil
+    if perfil is None or perfil.foto_referencia != referencia_da_foto(usuario):
         return None
     return ler_imagem(usuario.id.hex)

@@ -47,6 +47,10 @@ export interface Conversa {
   id: string;
   titulo: string;
   criadaEm: string;
+  atualizadaEm?: string;
+  origemLocal?: string | null;
+  carregada?: boolean;
+  naConta?: boolean;
   mensagens: Mensagem[];
   tipoDocumento?: TipoDocumento | null;
 }

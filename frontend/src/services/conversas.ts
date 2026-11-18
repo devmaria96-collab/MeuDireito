@@ -58,6 +58,7 @@ function lerLista(chave: string): Conversa[] {
             referencias: lerReferencias(mensagem.referencias),
           })),
           tipoDocumento: tipoValido(conversa.tipoDocumento) ? conversa.tipoDocumento : null,
+          atualizadaEm: typeof conversa.atualizadaEm === "string" ? conversa.atualizadaEm : undefined,
         },
       ];
     });

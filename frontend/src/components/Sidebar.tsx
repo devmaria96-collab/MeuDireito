@@ -1,4 +1,4 @@
-import { BookOpen, Landmark, Menu, PanelLeftClose, PanelLeftOpen, Plus, Scale, Settings, Trash2, X } from "lucide-react";
+import { BookOpen, Landmark, Menu, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Scale, Settings, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Conversa } from "../types/chat.ts";
 
@@ -10,6 +10,9 @@ interface PropriedadesBarra {
   onNova: () => void;
   onSelecionar: (id: string) => void;
   onPedirExclusao: (id: string) => void;
+  onPedirRenomear: (id: string) => void;
+  carregando?: boolean;
+  erroLista?: string | null;
   onConsultar: () => void;
   onFontes: () => void;
   onConfiguracoes: () => void;
@@ -80,6 +83,9 @@ export function Sidebar({
   onNova,
   onSelecionar,
   onPedirExclusao,
+  onPedirRenomear,
+  carregando = false,
+  erroLista = null,
   onConsultar,
   onFontes,
   onConfiguracoes,
@@ -203,7 +209,9 @@ export function Sidebar({
         <div className={`mt-5 flex min-h-0 flex-1 flex-col px-3 ${recolhida ? "md:hidden" : ""}`}>
           <p className="px-2 pb-2 text-xs font-medium tracking-wide text-slate-400 uppercase">Conversas</p>
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pb-3">
-            {conversas.length === 0 && <p className="px-2 py-3 text-sm text-slate-400">Nenhuma conversa ainda.</p>}
+            {carregando && <p className="px-2 py-3 text-sm text-slate-400">Carregando conversas…</p>}
+            {erroLista && <p className="px-2 py-3 text-sm text-[#ff8a8a]">{erroLista}</p>}
+            {!carregando && conversas.length === 0 && <p className="px-2 py-3 text-sm text-slate-400">Nenhuma conversa ainda.</p>}
             {conversas.map((conversa) => {
               const selecionada = conversa.id === ativaId;
               return (
@@ -220,7 +228,15 @@ export function Sidebar({
                     className="min-h-11 min-w-0 flex-1 px-3 py-2 text-left"
                   >
                     <span className="block truncate text-sm">{conversa.titulo}</span>
-                    <span className="block text-xs text-slate-400">{dataCurta(conversa.criadaEm)}</span>
+                    <span className="block text-xs text-slate-400">{dataCurta(conversa.atualizadaEm || conversa.criadaEm)}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onPedirRenomear(conversa.id)}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
+                    aria-label={`Renomear conversa ${conversa.titulo}`}
+                  >
+                    <Pencil size={15} />
                   </button>
                   <button
                     type="button"

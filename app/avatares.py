@@ -16,6 +16,7 @@ AVATARES = (
     "tribunal",
     "pergaminho",
     "estudante",
+    "protecao",
 )
 PADRAO = "balanca"
 LIMITE_BYTES = 2_000_000

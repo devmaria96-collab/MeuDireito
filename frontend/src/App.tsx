@@ -17,18 +17,30 @@ type Conexao = "verificando" | "conectado" | "indisponivel";
 export default function App() {
   const { tema, definirTema } = useTema();
   const csrfConta = useRef<string | null>(null);
+  const [conta, setConta] = useState<{ autenticado: boolean; csrf: string | null; pronta: boolean }>({
+    autenticado: false,
+    csrf: null,
+    pronta: false,
+  });
   const { perfil, setPerfil } = usePerfil();
   const {
     conversas,
     ativa,
     enviando,
     erro,
+    erroLista,
+    carregandoLista,
+    importacaoDisponivel,
+    importando,
     novaConversa,
     selecionarConversa,
     excluirConversa,
     excluirHistorico,
+    renomear,
+    dispensarImportacao,
+    importarLocais,
     enviar,
-  } = useConversas(perfil);
+  } = useConversas(perfil, conta);
   const [menuAberto, setMenuAberto] = useState(false);
   const [recolhida, setRecolhida] = useState(false);
   const [configAberta, setConfigAberta] = useState(false);
@@ -37,7 +49,11 @@ export default function App() {
   const [fontes, setFontes] = useState<CatalogoFontes | null>(null);
   const [erroFontes, setErroFontes] = useState<string | null>(null);
   const [exclusaoId, setExclusaoId] = useState<string | null>(null);
+  const [renomearId, setRenomearId] = useState<string | null>(null);
+  const [tituloEdicao, setTituloEdicao] = useState("");
+  const [erroRenomear, setErroRenomear] = useState<string | null>(null);
   const [confirmarHistorico, setConfirmarHistorico] = useState(false);
+  const [erroImportacao, setErroImportacao] = useState<string | null>(null);
   const [conexao, setConexao] = useState<Conexao>("verificando");
 
   useEffect(() => {
@@ -154,6 +170,14 @@ export default function App() {
         onNova={comecarConversa}
         onSelecionar={escolherConversa}
         onPedirExclusao={setExclusaoId}
+        onPedirRenomear={(id) => {
+          const conversa = conversas.find((item) => item.id === id);
+          setTituloEdicao(conversa?.titulo ?? "");
+          setErroRenomear(null);
+          setRenomearId(id);
+        }}
+        carregando={carregandoLista}
+        erroLista={erroLista}
         onConsultar={() => {
           setConsultaAberta(true);
           setMenuAberto(false);
@@ -206,8 +230,9 @@ export default function App() {
               tema={tema}
               onPerfil={setPerfil}
               onTema={definirTema}
-              onSessao={(_usuario, csrf) => {
+              onSessao={(usuario, csrf) => {
                 csrfConta.current = csrf;
+                setConta({ autenticado: Boolean(usuario && csrf), csrf, pronta: true });
               }}
             />
             <button
@@ -221,7 +246,11 @@ export default function App() {
           </div>
         </header>
 
-        {(ativa?.mensagens.length ?? 0) === 0 && !enviando ? (
+        {ativa?.carregada === false ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-sm text-muted" role="status">
+            {erro ?? "Carregando conversa…"}
+          </div>
+        ) : (ativa?.mensagens.length ?? 0) === 0 && !enviando ? (
           <ChatWindow
             mensagens={[]}
             enviando={false}
@@ -280,10 +309,11 @@ export default function App() {
               </button>
             </div>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-ink dark:text-slate-200">
-              <li>O histórico fica só neste navegador e pode conter dados sensíveis.</li>
-              <li>Apagar uma conversa ou todo o histórico remove esses dados deste aparelho.</li>
-              <li>As conversas não são usadas como contexto de outras pessoas.</li>
-              <li>Cada pergunta segue isolada. O agente não recebe as mensagens anteriores.</li>
+              <li>Sem conta, o histórico fica só neste navegador e pode conter dados sensíveis.</li>
+              <li>Entrar não apaga esse histórico e não o envia para a conta. A importação só ocorre se você confirmar.</li>
+              <li>Na conta, as conversas ficam salvas e aparecem nos aparelhos em que você entrar.</li>
+              <li>Apagar o histórico da conta não remove a cópia que continua só neste navegador.</li>
+              <li>Cada pergunta segue isolada. O agente recebe somente a pergunta atual da conversa selecionada.</li>
               <li>Não informe CPF, endereço ou documentos se isso não for indispensável.</li>
               <li>A chave do Gemini permanece somente no backend.</li>
               <li>O login é opcional. A publicação pública ainda depende de HTTPS, confirmação de e-mail e dos controles da LGPD.</li>
@@ -359,7 +389,9 @@ export default function App() {
               Excluir conversa?
             </h2>
             <p className="mt-2 text-sm leading-6 text-ink dark:text-slate-200">
-              “{conversaExclusao.titulo}” será removida deste navegador. Essa ação não pode ser desfeita.
+              {conta.autenticado
+                ? `“${conversaExclusao.titulo}” será removida da sua conta. Essa ação não pode ser desfeita.`
+                : `“${conversaExclusao.titulo}” será removida deste navegador. Essa ação não pode ser desfeita.`}
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -396,7 +428,9 @@ export default function App() {
               Apagar todo o histórico?
             </h2>
             <p className="mt-2 text-sm leading-6 text-ink dark:text-slate-200">
-              Todas as conversas salvas neste navegador serão excluídas.
+              {conta.autenticado
+                ? "As conversas da sua conta serão excluídas. A cópia que permanece só neste navegador não é apagada."
+                : "Todas as conversas salvas neste navegador serão excluídas."}
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -416,6 +450,89 @@ export default function App() {
                 className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
               >
                 Apagar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {renomearId && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-navy/50 p-4" role="presentation">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-renomear"
+            className="w-full max-w-md rounded-2xl bg-white p-5 text-navy shadow-xl dark:bg-navy dark:text-white"
+          >
+            <h2 id="titulo-renomear" className="text-lg font-semibold">
+              Renomear conversa
+            </h2>
+            <input
+              value={tituloEdicao}
+              onChange={(evento) => setTituloEdicao(evento.target.value)}
+              maxLength={80}
+              className="mt-4 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm dark:border-white/15 dark:bg-black"
+              aria-label="Novo título"
+            />
+            {erroRenomear && <p className="mt-2 text-sm text-[#9f1239]">{erroRenomear}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setRenomearId(null)} className="rounded-xl px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-white/10">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void renomear(renomearId, tituloEdicao)
+                    .then(() => setRenomearId(null))
+                    .catch((falha: unknown) => setErroRenomear(falha instanceof Error ? falha.message : "Não foi possível renomear."));
+                }}
+                className="rounded-xl bg-[#9f1239] px-4 py-2 text-sm font-medium text-white"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {importacaoDisponivel && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-navy/50 p-4" role="presentation">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-importacao"
+            className="w-full max-w-md rounded-2xl bg-white p-5 text-navy shadow-xl dark:bg-navy dark:text-white"
+          >
+            <h2 id="titulo-importacao" className="text-lg font-semibold">
+              Conversas deste navegador
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-ink dark:text-slate-200">
+              Você possui conversas salvas neste navegador. Deseja adicioná-las à sua conta?
+            </p>
+            <p className="mt-2 text-sm leading-6 text-ink dark:text-slate-200">
+              A cópia deste navegador só é removida se você apagá-la nas configurações, depois de a importação terminar.
+            </p>
+            {erroImportacao && <p className="mt-2 text-sm text-[#9f1239]">{erroImportacao}</p>}
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={dispensarImportacao}
+                className="rounded-xl px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-white/10"
+              >
+                Agora não
+              </button>
+              <button
+                type="button"
+                disabled={importando}
+                onClick={() => {
+                  setErroImportacao(null);
+                  void importarLocais().catch((falha: unknown) => {
+                    setErroImportacao(falha instanceof Error ? falha.message : "Não foi possível importar as conversas.");
+                  });
+                }}
+                className="rounded-xl bg-[#9f1239] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {importando ? "Importando…" : "Importar conversas"}
               </button>
             </div>
           </div>

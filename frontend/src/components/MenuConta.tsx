@@ -1,4 +1,4 @@
-import { Eye, EyeOff, UserRound, X } from "lucide-react";
+import { Eye, EyeOff, Scale, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Tema } from "../hooks/useTema.ts";
 import {
@@ -29,6 +29,25 @@ interface PropriedadesMenu {
 const campo =
   "min-h-11 w-full rounded-xl border border-black/15 bg-white px-3 text-base text-black outline-none focus:border-[#e10600] sm:text-sm dark:border-white/15 dark:bg-black dark:text-white";
 const botaoCheio = "min-h-11 w-full rounded-full bg-[#9f1239] text-sm font-medium text-white disabled:opacity-60";
+const PERFIS_CONTA: { id: Perfil; rotulo: string }[] = [
+  { id: "estudante", rotulo: "Estudante" },
+  { id: "profissional", rotulo: "Profissional" },
+  { id: "cidadao", rotulo: "Cidadão" },
+];
+
+function Marca() {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#9f1239] text-white" aria-hidden="true">
+        <Scale size={26} />
+      </span>
+      <div>
+        <p className="text-sm font-semibold leading-5">Meu Direito</p>
+        <p className="text-xs leading-5 text-[#5c5c5c] dark:text-white/70">O conhecimento jurídico ao seu alcance.</p>
+      </div>
+    </div>
+  );
+}
 
 export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: PropriedadesMenu) {
   const [aberto, setAberto] = useState(false);
@@ -75,6 +94,8 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
         if (sessao.usuario.tipo_avatar === "imagem") {
           trocarFoto(await carregarFoto());
         }
+      } else {
+        aplicarSessao(null, null);
       }
     });
     return () => {
@@ -133,6 +154,15 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
   }
 
   async function aoCadastrar() {
+    const nomeLimpo = nome.trim();
+    if (nomeLimpo.includes("@") || nomeLimpo.length > 40) {
+      setErro("O nome de exibição não pode ser um e-mail nem passar de 40 caracteres.");
+      return;
+    }
+    if (senha.length < 8 || senha.length > 128) {
+      setErro("A senha precisa ter entre 8 e 128 caracteres.");
+      return;
+    }
     if (senha !== confirmar) {
       setErro("A confirmação da senha não confere.");
       return;
@@ -245,8 +275,32 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
     }
   }
 
+  async function escolherPerfilJuridico(proximo: Perfil) {
+    onPerfil(proximo);
+    if (!csrf) {
+      return;
+    }
+    setEnviando(true);
+    setErro(null);
+    try {
+      const sessao = await salvarPerfil(csrf, { perfil_juridico: proximo });
+      if (sessao.usuario) {
+        aplicarSessao(sessao.usuario, sessao.csrf);
+        setAviso("Perfil salvo nesta conta.");
+      }
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível salvar o perfil.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   async function aoSalvarNome() {
     if (!csrf) {
+      return;
+    }
+    if (nome.includes("@") || nome.trim().length > 40) {
+      setErro("O nome de exibição não pode ser um e-mail nem passar de 40 caracteres.");
       return;
     }
     setEnviando(true);
@@ -292,9 +346,13 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
             className="max-h-[100dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-black shadow-xl sm:max-h-[90dvh] sm:max-w-md sm:rounded-2xl sm:p-5 dark:bg-black dark:text-white"
           >
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium tracking-wide text-[#9f1239]">Meu Direito</p>
-                <h2 id="titulo-conta" className="text-lg font-semibold">
+              <div className="min-w-0">
+                {tela === "entrar" || tela === "cadastrar" || (tela === "menu" && !usuario) ? (
+                  <Marca />
+                ) : (
+                  <p className="text-xs font-medium tracking-wide text-[#9f1239]">Meu Direito</p>
+                )}
+                <h2 id="titulo-conta" className="mt-2 text-lg font-semibold">
                   {tituloDaTela(tela, usuario)}
                 </h2>
               </div>
@@ -302,9 +360,6 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
                 <X size={18} />
               </button>
             </div>
-            {tela === "entrar" || tela === "cadastrar" ? (
-              <p className="mt-1 text-sm text-[#5c5c5c] dark:text-white/70">O conhecimento jurídico ao seu alcance.</p>
-            ) : null}
             {!contasDisponiveis && (
               <p className="mt-3 text-sm leading-6">
                 O cadastro fica indisponível enquanto o banco de contas não está no ar. A pesquisa continua aberta sem login.
@@ -365,6 +420,9 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
                   {tela === "entrar" ? "Criar conta" : "Entrar"}
                 </button>
                 <button type="button" className="text-sm text-[#5c5c5c] underline dark:text-white/70" onClick={fechar}>Continuar sem entrar</button>
+                <p className="text-xs leading-5 text-[#5c5c5c] dark:text-white/70">
+                  Entrar não apaga as conversas deste navegador e não as envia para a conta.
+                </p>
               </form>
             )}
             {tela === "recuperar" && (
@@ -390,6 +448,33 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
                   Nome de exibição
                   <input className={campo} value={nome} onChange={(evento) => setNome(evento.target.value)} maxLength={40} />
                 </label>
+                <div className="grid gap-1 text-sm">
+                  E-mail
+                  <p className="rounded-xl border border-black/10 px-3 py-2 break-all dark:border-white/15">{usuario.email}</p>
+                  <p className="text-xs leading-5 text-[#5c5c5c] dark:text-white/70">
+                    O endereço completo aparece só para você. Ele não entra no cabeçalho.
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Perfil jurídico">
+                  {PERFIS_CONTA.map((opcao) => {
+                    const ativo = perfil === opcao.id;
+                    return (
+                      <button
+                        key={opcao.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={ativo}
+                        disabled={enviando}
+                        onClick={() => void escolherPerfilJuridico(opcao.id)}
+                        className={`min-h-11 rounded-full px-1 text-[11px] font-medium sm:text-xs ${
+                          ativo ? "bg-[#9f1239] text-white" : "border border-black/15 dark:border-white/20"
+                        }`}
+                      >
+                        {opcao.rotulo}
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="grid grid-cols-4 gap-2" role="list" aria-label="Avatares jurídicos">
                   {AVATARES_JURIDICOS.map((item) => (
                     <button
@@ -419,7 +504,7 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
                 )}
                 <button type="button" className={botaoCheio} disabled={enviando} onClick={() => void aoSalvarNome()}>Salvar perfil</button>
                 <p className="text-xs leading-5 text-[#5c5c5c] dark:text-white/70">
-                  A importação do histórico deste navegador para a conta ainda não está disponível. Nada é importado automaticamente.
+                  A importação pede confirmação e não apaga as conversas deste navegador.
                 </p>
               </div>
             )}
@@ -427,7 +512,7 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
               <div className="mt-4 grid gap-3 text-sm leading-6">
                 <p>E-mail da conta: {usuario.email}</p>
                 <p>A troca de e-mail fica pendente até existir um fluxo de confirmação. O endereço não pode ser alterado por aqui.</p>
-                <p>O histórico de pesquisa continua neste navegador e não é sincronizado entre aparelhos.</p>
+                <p>As conversas feitas na conta ficam salvas e aparecem nos aparelhos em que você entrar. As deste navegador só entram na conta se você confirmar a importação.</p>
                 <button type="button" className="text-left underline" onClick={() => abrirTela("perfil")}>Editar perfil e avatar</button>
               </div>
             )}

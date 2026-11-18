@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: meudireito_local
       POSTGRES_DB: meudireito
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - meudireito_pg:/var/lib/postgresql/data
     healthcheck:

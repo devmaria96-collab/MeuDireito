@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.agente import carregar_chave_gemini, explicar_consulta, responder
 from app.banco import preparar_banco
 from app.rotas_conta import router as rotas_conta
+from app.rotas_historico import router as rotas_historico
 from app.consulta_legislacao import ResultadoConsulta, consultar
 from app.feedback import registrar_feedback
 from app.legislacao import AVISO_SEM_CONSULTA, FONTES_OFICIAIS
@@ -64,6 +65,7 @@ app.add_middleware(
 )
 
 app.include_router(rotas_conta)
+app.include_router(rotas_historico)
 
 
 class PerguntaEntrada(BaseModel):

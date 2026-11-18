@@ -9,12 +9,13 @@ const COMUNS = {
 export const AVATARES_JURIDICOS = [
   { id: "balanca", nome: "Balança da Justiça" },
   { id: "martelo", nome: "Martelo de juiz" },
-  { id: "livro", nome: "Livro de Direito" },
-  { id: "constituicao", nome: "Constituição Federal" },
+  { id: "livro", nome: "Livro jurídico" },
+  { id: "constituicao", nome: "Constituição" },
   { id: "coluna", nome: "Coluna da Justiça" },
   { id: "tribunal", nome: "Tribunal" },
-  { id: "pergaminho", nome: "Pergaminho jurídico" },
+  { id: "pergaminho", nome: "Pergaminho" },
   { id: "estudante", nome: "Estudante de Direito" },
+  { id: "protecao", nome: "Símbolo de proteção jurídica" },
 ] as const;
 
 export type CodigoAvatar = (typeof AVATARES_JURIDICOS)[number]["id"];
@@ -72,13 +73,20 @@ export function AvatarJuridico({ codigo, className = "h-8 w-8" }: { codigo: stri
           <path {...COMUNS} d="M30 28l6 2v8l-6-2" />
         </>
       )}
+      {codigo === "protecao" && (
+        <>
+          <path {...COMUNS} d="M24 8l12 4v10c0 7-5 12-12 16-7-4-12-9-12-16V12z" />
+          <path {...COMUNS} d="M18 24l4 4 8-8" />
+        </>
+      )}
       {codigo !== "martelo" &&
         codigo !== "livro" &&
         codigo !== "constituicao" &&
         codigo !== "coluna" &&
         codigo !== "tribunal" &&
         codigo !== "pergaminho" &&
-        codigo !== "estudante" && (
+        codigo !== "estudante" &&
+        codigo !== "protecao" && (
           <>
             <path {...COMUNS} d="M24 8v6" />
             <path {...COMUNS} d="M10 22h28" />
