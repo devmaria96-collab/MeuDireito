@@ -22,6 +22,8 @@ class Usuario(Base):
     nome_exibicao: Mapped[str] = mapped_column(String(40))
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    email_confirmado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    confirmacao_motivo: Mapped[str | None] = mapped_column(String(20), nullable=True)
     perfil: Mapped[Perfil | None] = relationship(
         back_populates="usuario",
         cascade="all, delete-orphan",
@@ -30,6 +32,8 @@ class Usuario(Base):
     )
     sessoes: Mapped[list[Sessao]] = relationship(back_populates="usuario", cascade="all, delete-orphan")
     conversas: Mapped[list[ConversaRegistro]] = relationship(back_populates="usuario", cascade="all, delete-orphan")
+    redefinicoes: Mapped[list[RedefinicaoSenha]] = relationship(back_populates="usuario", cascade="all, delete-orphan")
+    confirmacoes: Mapped[list[ConfirmacaoEmail]] = relationship(back_populates="usuario", cascade="all, delete-orphan")
 
 
 class Perfil(Base):
@@ -61,6 +65,45 @@ class Sessao(Base):
     expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revogada_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     usuario: Mapped[Usuario] = relationship(back_populates="sessoes")
+
+
+class RedefinicaoSenha(Base):
+    """Pedido de nova senha. Só o hash do token fica gravado."""
+
+    __tablename__ = "redefinicoes_senha"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("usuarios.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    usado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    usuario: Mapped[Usuario] = relationship(back_populates="redefinicoes")
+
+
+class ConfirmacaoEmail(Base):
+    """Confirmação do endereço. Só o hash do token fica gravado."""
+
+    __tablename__ = "confirmacoes_email"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("usuarios.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    usado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    usuario: Mapped[Usuario] = relationship(back_populates="confirmacoes")
+
+
+class RegistroExclusao(Base):
+    """Registro mínimo da exclusão, sem conversa, nome ou e-mail em texto."""
+
+    __tablename__ = "registros_exclusao"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    email_hash: Mapped[str] = mapped_column(String(64), index=True)
+    excluido_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class ConversaRegistro(Base):

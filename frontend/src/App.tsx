@@ -1,6 +1,9 @@
 import { AlertCircle, Moon, Scale, Sun, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { AvisoArmazenamento } from "./components/AvisoArmazenamento.tsx";
 import { MenuConta } from "./components/MenuConta.tsx";
+import { PaginaLegal } from "./components/PaginaLegal.tsx";
+import { RodapeLegal } from "./components/RodapeLegal.tsx";
 import { BotaoMenu, Sidebar } from "./components/Sidebar.tsx";
 import { ConsultaLegislacao } from "./components/ConsultaLegislacao.tsx";
 import { ChatInput } from "./components/ChatInput.tsx";
@@ -14,9 +17,16 @@ import { salvarPerfil } from "./services/conta.ts";
 
 type Conexao = "verificando" | "conectado" | "indisponivel";
 
+function lerDocumento(): "privacidade" | "termos" | null {
+  const valor = new URLSearchParams(window.location.search).get("documento");
+  return valor === "privacidade" || valor === "termos" ? valor : null;
+}
+
 export default function App() {
   const { tema, definirTema } = useTema();
   const csrfConta = useRef<string | null>(null);
+  const [tokenRedefinicao, setTokenRedefinicao] = useState<string | null>(null);
+  const [tokenConfirmacao, setTokenConfirmacao] = useState<string | null>(null);
   const [conta, setConta] = useState<{ autenticado: boolean; csrf: string | null; pronta: boolean }>({
     autenticado: false,
     csrf: null,
@@ -55,6 +65,48 @@ export default function App() {
   const [confirmarHistorico, setConfirmarHistorico] = useState(false);
   const [erroImportacao, setErroImportacao] = useState<string | null>(null);
   const [conexao, setConexao] = useState<Conexao>("verificando");
+  const [documento, setDocumento] = useState<"privacidade" | "termos" | null>(lerDocumento);
+
+  function abrirDocumento(pagina: "privacidade" | "termos") {
+    const parametros = new URLSearchParams(window.location.search);
+    parametros.set("documento", pagina);
+    const consulta = parametros.toString();
+    window.history.pushState({}, "", `${window.location.pathname}?${consulta}`);
+    setDocumento(pagina);
+  }
+
+  function fecharDocumento() {
+    const parametros = new URLSearchParams(window.location.search);
+    parametros.delete("documento");
+    const consulta = parametros.toString();
+    window.history.pushState({}, "", consulta ? `${window.location.pathname}?${consulta}` : window.location.pathname);
+    setDocumento(null);
+  }
+
+  useEffect(() => {
+    const aoVoltar = () => setDocumento(lerDocumento());
+    window.addEventListener("popstate", aoVoltar);
+    return () => window.removeEventListener("popstate", aoVoltar);
+  }, []);
+
+  useEffect(() => {
+    const parametros = new URLSearchParams(window.location.search);
+    const token = parametros.get("redefinir");
+    const confirmacao = parametros.get("confirmar");
+    if (!token && !confirmacao) {
+      return;
+    }
+    if (token) {
+      setTokenRedefinicao(token);
+      parametros.delete("redefinir");
+    }
+    if (confirmacao) {
+      setTokenConfirmacao(confirmacao);
+      parametros.delete("confirmar");
+    }
+    const restante = parametros.toString();
+    window.history.replaceState({}, "", restante ? `${window.location.pathname}?${restante}` : window.location.pathname);
+  }, []);
 
   useEffect(() => {
     let ativo = true;
@@ -228,6 +280,13 @@ export default function App() {
             <MenuConta
               perfil={perfil}
               tema={tema}
+              tokenRedefinicao={tokenRedefinicao}
+              tokenConfirmacao={tokenConfirmacao}
+              onAbrirDocumento={abrirDocumento}
+              onTokenConsumido={() => {
+                setTokenRedefinicao(null);
+                setTokenConfirmacao(null);
+              }}
               onPerfil={setPerfil}
               onTema={definirTema}
               onSessao={(usuario, csrf) => {
@@ -246,6 +305,8 @@ export default function App() {
           </div>
         </header>
 
+        <AvisoArmazenamento />
+
         {ativa?.carregada === false ? (
           <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-sm text-muted" role="status">
             {erro ?? "Carregando conversa…"}
@@ -258,6 +319,7 @@ export default function App() {
           >
             <SeletorPerfil perfil={perfil} onMudar={mudarPerfil} solto />
             <ChatInput enviando={enviando} solto onEnviar={(pergunta) => void enviar(pergunta)} />
+            <RodapeLegal onAbrir={abrirDocumento} />
           </ChatWindow>
         ) : (
           <>
@@ -281,6 +343,7 @@ export default function App() {
               <div className="mx-auto w-full max-w-3xl">
                 <SeletorPerfil perfil={perfil} onMudar={mudarPerfil} solto />
                 <ChatInput enviando={enviando} solto onEnviar={(pergunta) => void enviar(pergunta)} />
+                <RodapeLegal onAbrir={abrirDocumento} />
               </div>
             </div>
           </>
@@ -315,10 +378,19 @@ export default function App() {
               <li>Apagar o histórico da conta não remove a cópia que continua só neste navegador.</li>
               <li>Cada pergunta segue isolada. O agente recebe somente a pergunta atual da conversa selecionada.</li>
               <li>Não informe CPF, endereço ou documentos se isso não for indispensável.</li>
+              <li>Ao enviar, a pergunta atual vai ao Google Gemini. As mensagens anteriores não vão junto.</li>
               <li>A chave do Gemini permanece somente no backend.</li>
-              <li>O login é opcional. A publicação pública ainda depende de HTTPS, confirmação de e-mail e dos controles da LGPD.</li>
+              <li>O login é opcional. Esta instalação não declara conformidade com a LGPD.</li>
               <li>API local: {URL_API}</li>
             </ul>
+            <div className="mt-4 flex flex-wrap gap-3 text-sm">
+              <button type="button" className="min-h-11 underline" onClick={() => abrirDocumento("privacidade")}>
+                Política de Privacidade
+              </button>
+              <button type="button" className="min-h-11 underline" onClick={() => abrirDocumento("termos")}>
+                Termos de Uso
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => setConfirmarHistorico(true)}
@@ -494,6 +566,8 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {documento && <PaginaLegal pagina={documento} onFechar={fecharDocumento} />}
 
       {importacaoDisponivel && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-navy/50 p-4" role="presentation">

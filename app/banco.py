@@ -51,6 +51,17 @@ def preparar_banco() -> None:
     if not url:
         _disponivel = False
         return
+    from app.homologacao import migracao_de_postgres_permitida, url_normalizada
+
+    if url.startswith(("postgres://", "postgresql://", "postgresql+")):
+        url = url_normalizada(url)
+        permitida, motivo = migracao_de_postgres_permitida(url)
+        if not permitida:
+            logger.warning("%s", motivo)
+            _disponivel = False
+            _engine = None
+            _fabrica = None
+            return
     try:
         if _engine is not None:
             _engine.dispose()

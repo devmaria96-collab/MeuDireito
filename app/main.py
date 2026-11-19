@@ -41,6 +41,19 @@ logger = logging.getLogger("meu_direito")
 @asynccontextmanager
 async def _ciclo_de_vida(_aplicacao: FastAPI):
     preparar_banco()
+    from app.banco import contas_disponiveis, exigir_fabrica
+    from app.contas import purgar_retencao
+
+    if contas_disponiveis():
+        banco = exigir_fabrica()()
+        try:
+            purgar_retencao(banco)
+        finally:
+            banco.close()
+    from app.lgpd import pendencias_administrador
+
+    for item in pendencias_administrador():
+        logger.warning("Pendência de publicação: %s", item)
     yield
 
 
@@ -51,19 +64,37 @@ app = FastAPI(
     lifespan=_ciclo_de_vida,
 )
 
-ORIGENS_LOCAIS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+from app.homologacao import AcessoHomologacaoMiddleware
+from app.homologacao import router as rotas_homologacao
+from app.publicacao import hosts_de_proxy, origens_permitidas, proxy_confiavel
+
+app.add_middleware(AcessoHomologacaoMiddleware)
+
+if proxy_confiavel():
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=hosts_de_proxy())
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ORIGENS_LOCAIS,
+    allow_origins=origens_permitidas(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Accept", "Content-Type", "X-CSRF-Token"],
 )
 
+
+@app.middleware("http")
+async def _cabecalhos_de_seguranca(pedido: Request, seguinte):  # type: ignore[no-untyped-def]
+    """Evita farejar o tipo do arquivo e, em HTTPS, pede a permanência do transporte seguro."""
+    resposta = await seguinte(pedido)
+    resposta.headers["X-Content-Type-Options"] = "nosniff"
+    resposta.headers["Referrer-Policy"] = "no-referrer"
+    if pedido.url.scheme == "https":
+        resposta.headers["Strict-Transport-Security"] = "max-age=31536000"
+    return resposta
+
+app.include_router(rotas_homologacao)
 app.include_router(rotas_conta)
 app.include_router(rotas_historico)
 
@@ -255,6 +286,17 @@ def _detalhe_seguro(erro: Exception) -> tuple[int, str]:
         )
 
     return 500, "O backend encontrou um erro interno ao processar a resposta."
+
+
+@app.get("/lgpd")
+def ler_lgpd(pedido: Request) -> dict[str, object]:
+    """Descreve o tratamento desta instalação. Não exige conta e não declara conformidade."""
+    from app.lgpd import panorama
+
+    origem = pedido.client.host if pedido.client else "local"
+    if not consumir(f"lgpd:{origem}", limite=60):
+        raise HTTPException(status_code=429, detail="Muitas consultas em sequência. Aguarde um minuto e tente de novo.")
+    return panorama(pedido.url.scheme == "https")
 
 
 @app.get("/fontes-oficiais")

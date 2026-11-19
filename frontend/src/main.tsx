@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { PortaoHomologacao } from "./components/PortaoHomologacao.tsx";
 import App from "./App.tsx";
 import "./index.css";
 
@@ -10,6 +11,8 @@ if (!raiz) {
 
 createRoot(raiz).render(
   <StrictMode>
-    <App />
+    <PortaoHomologacao>
+      <App />
+    </PortaoHomologacao>
   </StrictMode>,
 );

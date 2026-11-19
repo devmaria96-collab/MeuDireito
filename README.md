@@ -8,7 +8,7 @@ A chave `GEMINI_API_KEY` fica somente no `.env` da raiz. Ela não entra no front
 
 O Meu Direito é uma ferramenta de pesquisa jurídica. Consulta o texto de artigos de lei federal no Portal da Legislação do Planalto quando a página oficial pode ser lida. A transcrição exibida é a que foi recuperada nessa consulta. A explicação do Gemini é interpretação e não substitui o texto da fonte. Súmulas, jurisprudência e tribunais não são consultados. As respostas são informação geral, não aconselhamento jurídico individualizado e não incluem redação de peças.
 
-O visitante guarda o histórico só no navegador. Esse histórico pode conter dados sensíveis e pode ser apagado nas configurações. O login é opcional: a pesquisa funciona sem conta. Entrar em uma conta não apaga as conversas do navegador e não as envia sozinho. A importação pede confirmação. As conversas criadas na conta ficam no PostgreSQL e aparecem nos aparelhos em que a mesma conta entrar. Cada pergunta enviada ao Gemini continua isolada: o modelo recebe somente a pergunta atual da conversa selecionada. Esta instalação não deve ser publicada na internet sem HTTPS, confirmação de e-mail e controles compatíveis com a LGPD.
+O visitante guarda o histórico só no navegador. Esse histórico pode conter dados sensíveis e pode ser apagado nas configurações. O login é opcional: a pesquisa funciona sem conta. Entrar em uma conta não apaga as conversas do navegador e não as envia sozinho. A importação pede confirmação. As conversas criadas na conta ficam no PostgreSQL e aparecem nos aparelhos em que a mesma conta entrar. Cada pergunta enviada ao Gemini continua isolada: o modelo recebe somente a pergunta atual da conversa selecionada. Esta instalação não deve ser publicada na internet sem HTTPS e validação jurídica da LGPD. O passo a passo de homologação e de publicação está em `DEPLOY.md`. Com `AMBIENTE=homologacao`, a pesquisa e a API ficam atrás de uma senha de acesso que não entra no repositório. Em desenvolvimento essa trava fica desligada. A descrição do tratamento fica em `GET /lgpd` e não declara conformidade. `CONTROLADOR_PRIVACIDADE` e `CONTATO_PRIVACIDADE` só aparecem se forem definidos; sem eles, a política deixa o responsável e o canal em branco e avisa o administrador. Sem SMTP, a recuperação de senha e a confirmação de e-mail permanecem pendentes e nenhum e-mail é simulado.
 
 ## Backend
 
@@ -47,7 +47,7 @@ O contêiner publica a porta 5434. A 5432 fica livre para outros PostgreSQL que 
 
 Ao subir a API, o Alembic aplica as migrações pendentes. As senhas ficam somente como hash Argon2id. A sessão usa cookie HttpOnly. Em HTTP local o cookie não leva a marca Secure; em HTTPS, ou com `COOKIE_SECURE=1`, ela é ativada.
 
-A recuperação de senha responde que o envio de e-mail ainda não está configurado. Ela não simula o envio.
+A recuperação de senha só envia e-mail quando `SMTP_HOST`, `SMTP_DE` e `URL_PUBLICA` estão definidos. Sem esse serviço, a resposta informa que o envio permanece pendente e nenhum e-mail é simulado. O token de redefinição expira em 30 minutos, é de uso único e fica guardado apenas como hash. `RETENCAO_REGISTRO_EXCLUSAO_DIAS` controla se, depois da exclusão da conta, resta por alguns dias só o resumo criptográfico do e-mail e a data. O padrão é `0`: nada pessoal permanece. Não há rotina de backup no aplicativo. Conversas da conta permanecem até a pessoa apagá-las ou excluir a conta.
 
 ## Frontend
 

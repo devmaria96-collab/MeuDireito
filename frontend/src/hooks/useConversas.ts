@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { conversar } from "../services/api.ts";
+import { EVENTO_CONSENTIMENTO, permitirHistoricoVisitante, type EscolhaArmazenamento } from "../services/consentimento.ts";
 import {
   apagarHistoricoLocal,
   criarMensagem,
@@ -59,6 +60,10 @@ export function useConversas(perfil: Perfil, conta: ContaDoChat) {
   const [importacaoAdiada, setImportacaoAdiada] = useState(() => sessionStorage.getItem(CHAVE_ADIAR) === "1");
   const [importando, setImportando] = useState(false);
   const bloqueio = useRef(false);
+  const conversasRef = useRef(conversas);
+  const ativaRef = useRef(ativaId);
+  conversasRef.current = conversas;
+  ativaRef.current = ativaId;
   const perfilAtual = useRef(perfil);
   const contaAtual = useRef(conta);
   const contaVista = useRef(conta);
@@ -130,6 +135,25 @@ export function useConversas(perfil: Perfil, conta: ContaDoChat) {
       void csrf;
     };
   }, [conta.pronta, conta.autenticado, conta.csrf]);
+
+  useEffect(() => {
+    const aoMudar = (evento: Event) => {
+      if (contaAtual.current.autenticado) {
+        return;
+      }
+      const escolha = (evento as CustomEvent<EscolhaArmazenamento>).detail;
+      if (escolha?.historicoVisitante && permitirHistoricoVisitante()) {
+        gravarLocais(conversasRef.current, ativaRef.current);
+        return;
+      }
+      if (escolha && !escolha.historicoVisitante) {
+        setConversas([]);
+        setAtivaId(null);
+      }
+    };
+    window.addEventListener(EVENTO_CONSENTIMENTO, aoMudar);
+    return () => window.removeEventListener(EVENTO_CONSENTIMENTO, aoMudar);
+  }, []);
 
   const ativa = conversas.find((conversa) => conversa.id === ativaId) ?? null;
   const locaisPendentes = conta.autenticado

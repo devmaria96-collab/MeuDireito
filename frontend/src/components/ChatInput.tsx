@@ -83,8 +83,9 @@ export function ChatInput({ enviando, solto = false, onEnviar }: PropriedadesEnt
           <ArrowUp size={18} />
         </button>
       </div>
-      <p className="mx-auto mt-2 max-w-3xl text-center text-xs text-muted">
-        {celular ? "Use o botão para enviar." : "Enter envia. Shift + Enter quebra a linha."}
+      <p className="mx-auto mt-2 max-w-3xl text-center text-xs leading-5 text-muted">
+        {celular ? "Use o botão para enviar. " : "Enter envia. Shift + Enter quebra a linha. "}
+        Ao enviar, esta pergunta e o perfil de linguagem vão para o Google Gemini. As mensagens anteriores não vão junto.
       </p>
     </form>
   );

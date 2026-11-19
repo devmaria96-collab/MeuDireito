@@ -1,3 +1,4 @@
+import { permitirHistoricoVisitante } from "./consentimento.ts";
 import { lerReferencias } from "./api.ts";
 import type { Conversa, Mensagem, PapelMensagem, Referencia, TipoDocumento } from "../types/chat.ts";
 import { TIPOS_DOCUMENTO } from "../types/chat.ts";
@@ -76,6 +77,9 @@ export function lerConversas(): Conversa[] {
 }
 
 export function salvarConversas(conversas: Conversa[]): void {
+  if (!permitirHistoricoVisitante()) {
+    return;
+  }
   localStorage.setItem(CHAVE_CONVERSAS, JSON.stringify(conversas));
 }
 
@@ -84,6 +88,9 @@ export function lerConversaAtiva(): string | null {
 }
 
 export function salvarConversaAtiva(id: string | null): void {
+  if (!permitirHistoricoVisitante()) {
+    return;
+  }
   if (id) {
     localStorage.setItem(CHAVE_ATIVA, id);
   } else {

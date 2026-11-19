@@ -1,0 +1,23 @@
+# PostgreSQL vazio para homologação. Não usa o volume do desenvolvimento.
+# Defina POSTGRES_PASSWORD no terminal antes de subir. Não grave a senha aqui.
+# Este arquivo não é iniciado pelo guia automaticamente.
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: meudireito_homologacao
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no terminal}
+      POSTGRES_DB: meudireito_homologacao
+    ports:
+      - "5435:5432"
+    volumes:
+      - meudireito_homologacao_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meudireito_homologacao -d meudireito_homologacao"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  meudireito_homologacao_pg:

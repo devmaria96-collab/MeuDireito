@@ -72,6 +72,7 @@ export async function verificarBackend(): Promise<boolean> {
   try {
     const resposta = await fetch(`${URL_API}/openapi.json`, {
       method: "GET",
+      credentials: "include",
       headers: { Accept: "application/json" },
       signal: controle.signal,
     });
@@ -103,6 +104,7 @@ export interface CatalogoFontes {
 
 export async function obterFontesOficiais(): Promise<CatalogoFontes> {
   const resposta = await fetch(`${URL_API}/fontes-oficiais`, {
+    credentials: "include",
     headers: { Accept: "application/json" },
   });
   if (!resposta.ok) {
@@ -153,6 +155,7 @@ export async function consultarLegislacao(consulta: string, perfil?: Perfil): Pr
   try {
     resposta = await fetch(`${URL_API}/consultar-legislacao`, {
       method: "POST",
+      credentials: "include",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -268,6 +271,7 @@ export async function conversar(pedido: PedidoConversa): Promise<RespostaConvers
   try {
     resposta = await fetch(`${URL_API}/conversar`, {
       method: "POST",
+      credentials: "include",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -313,6 +317,7 @@ export async function enviarAvaliacao(avaliacao: "positiva" | "negativa", motivo
   try {
     resposta = await fetch(`${URL_API}/feedback`, {
       method: "POST",
+      credentials: "include",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify(corpo),
       signal: AbortSignal.timeout(15000),

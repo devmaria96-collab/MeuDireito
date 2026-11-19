@@ -2,33 +2,53 @@ import { Eye, EyeOff, Scale, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Tema } from "../hooks/useTema.ts";
 import {
-  avisoRecuperacao,
+  alterarSenha,
+  baixarDados,
+  confirmarEmail,
+  pedirRedefinicao,
+  reenviarConfirmacao,
   cadastrarConta,
   carregarFoto,
+  encerrarOutrasSessoes,
+  encerrarSessao,
+  encerrarTodasSessoes,
   entrarConta,
   enviarFoto,
+  excluirConta,
+  lerPrivacidade,
   lerSessao,
+  listarSessoes,
+  redefinirSenha,
   removerFoto,
   sairConta,
   salvarPerfil,
+  type SessaoAtiva,
+  type TextoPrivacidade,
   type UsuarioConta,
 } from "../services/conta.ts";
+import { lerPanorama, type PanoramaLgpd } from "../services/lgpd.ts";
 import type { Perfil } from "../types/chat.ts";
 import { AVATARES_JURIDICOS, AvatarJuridico } from "./AvatarJuridico.tsx";
+import { PainelArmazenamento } from "./PainelArmazenamento.tsx";
 
-type Tela = "menu" | "entrar" | "cadastrar" | "perfil" | "conta" | "recuperar";
+type Tela = "menu" | "entrar" | "cadastrar" | "perfil" | "conta" | "recuperar" | "senha" | "sessoes" | "privacidade" | "excluir" | "redefinir" | "confirmar";
 
 interface PropriedadesMenu {
   perfil: Perfil;
   tema: Tema;
+  tokenRedefinicao?: string | null;
+  tokenConfirmacao?: string | null;
   onPerfil: (perfil: Perfil) => void;
   onTema: (tema: Tema) => void;
   onSessao: (usuario: UsuarioConta | null, csrf: string | null) => void;
+  onTokenConsumido?: () => void;
+  onAbrirDocumento?: (pagina: "privacidade" | "termos") => void;
 }
 
 const campo =
   "min-h-11 w-full rounded-xl border border-black/15 bg-white px-3 text-base text-black outline-none focus:border-[#e10600] sm:text-sm dark:border-white/15 dark:bg-black dark:text-white";
 const botaoCheio = "min-h-11 w-full rounded-full bg-[#9f1239] text-sm font-medium text-white disabled:opacity-60";
+const confirmacoesEmCurso = new Set<string>();
 const PERFIS_CONTA: { id: Perfil; rotulo: string }[] = [
   { id: "estudante", rotulo: "Estudante" },
   { id: "profissional", rotulo: "Profissional" },
@@ -49,17 +69,26 @@ function Marca() {
   );
 }
 
-export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: PropriedadesMenu) {
+export function MenuConta({ perfil, tema, tokenRedefinicao, tokenConfirmacao, onPerfil, onTema, onSessao, onTokenConsumido, onAbrirDocumento }: PropriedadesMenu) {
   const [aberto, setAberto] = useState(false);
   const [tela, setTela] = useState<Tela>("menu");
   const [usuario, setUsuario] = useState<UsuarioConta | null>(null);
   const [csrf, setCsrf] = useState<string | null>(null);
   const [foto, setFoto] = useState<string | null>(null);
   const [contasDisponiveis, setContasDisponiveis] = useState(true);
+  const [correioConfigurado, setCorreioConfigurado] = useState(false);
+  const [emailRecuperacao, setEmailRecuperacao] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [senhaAtual, setSenhaAtual] = useState("");
+  const [novaSenha, setNovaSenha] = useState("");
+  const [confirmarNova, setConfirmarNova] = useState("");
+  const [sessoes, setSessoes] = useState<SessaoAtiva[]>([]);
+  const [privacidade, setPrivacidade] = useState<TextoPrivacidade | null>(null);
+  const [panorama, setPanorama] = useState<PanoramaLgpd | null>(null);
+  const [confirmacaoExclusao, setConfirmacaoExclusao] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmar, setConfirmar] = useState("");
@@ -81,12 +110,48 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
   }
 
   useEffect(() => {
+    if (!tokenRedefinicao) {
+      return;
+    }
+    setAberto(true);
+    setTela("redefinir");
+    setErro(null);
+    setAviso(null);
+  }, [tokenRedefinicao]);
+
+  useEffect(() => {
+    if (!tokenConfirmacao || confirmacoesEmCurso.has(tokenConfirmacao)) {
+      return;
+    }
+    confirmacoesEmCurso.add(tokenConfirmacao);
+    setAberto(true);
+    setTela("confirmar");
+    setEnviando(true);
+    void confirmarEmail(tokenConfirmacao)
+      .then(async (mensagem) => {
+        setAviso(mensagem);
+        const sessao = await lerSessao();
+        setCorreioConfigurado(sessao.correio_configurado);
+        if (sessao.usuario && sessao.csrf) {
+          aplicarSessao(sessao.usuario, sessao.csrf);
+        }
+        onTokenConsumido?.();
+      })
+      .catch((falha: unknown) => {
+        setErro(falha instanceof Error ? falha.message : "O link de confirmação é inválido ou expirou.");
+        onTokenConsumido?.();
+      })
+      .finally(() => setEnviando(false));
+  }, [tokenConfirmacao, onTokenConsumido]);
+
+  useEffect(() => {
     let ativo = true;
     void lerSessao().then(async (sessao) => {
       if (!ativo) {
         return;
       }
       setContasDisponiveis(sessao.contas_disponiveis);
+      setCorreioConfigurado(sessao.correio_configurado);
       if (sessao.usuario && sessao.csrf) {
         guardarVisitante();
         aplicarPreferencias(sessao.usuario);
@@ -175,8 +240,10 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
       if (sessao.usuario && sessao.csrf) {
         aplicarPreferencias(sessao.usuario);
         aplicarSessao(sessao.usuario, sessao.csrf);
+        setCorreioConfigurado(sessao.correio_configurado);
         setNome(sessao.usuario.nome_exibicao);
-        setTela("perfil");
+        setAviso(sessao.confirmacao_mensagem ?? null);
+        setTela(sessao.usuario.email_confirmado ? "perfil" : "conta");
         setSenha("");
         setConfirmar("");
       }
@@ -196,6 +263,7 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
       if (sessao.usuario && sessao.csrf) {
         aplicarPreferencias(sessao.usuario);
         aplicarSessao(sessao.usuario, sessao.csrf);
+        setCorreioConfigurado(sessao.correio_configurado);
         trocarFoto(sessao.usuario.tipo_avatar === "imagem" ? await carregarFoto() : null);
         setSenha("");
         fechar();
@@ -217,6 +285,175 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
     setEmail("");
     setSenha("");
     fechar();
+  }
+
+  function dataDaSessao(iso: string): string {
+    const data = new Date(iso);
+    if (Number.isNaN(data.getTime())) {
+      return "";
+    }
+    return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(data);
+  }
+
+  async function aoAlterarSenha() {
+    if (!csrf) {
+      return;
+    }
+    if (novaSenha.length < 8 || novaSenha !== confirmarNova) {
+      setErro(novaSenha.length < 8 ? "A senha precisa ter entre 8 e 128 caracteres." : "A confirmação da senha não confere.");
+      return;
+    }
+    setEnviando(true);
+    setErro(null);
+    try {
+      setAviso(await alterarSenha(csrf, senhaAtual, novaSenha, confirmarNova));
+      setSenhaAtual("");
+      setNovaSenha("");
+      setConfirmarNova("");
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível alterar a senha.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function aoRedefinir() {
+    if (!tokenRedefinicao) {
+      return;
+    }
+    if (novaSenha.length < 8 || novaSenha !== confirmarNova) {
+      setErro(novaSenha.length < 8 ? "A senha precisa ter entre 8 e 128 caracteres." : "A confirmação da senha não confere.");
+      return;
+    }
+    setEnviando(true);
+    setErro(null);
+    try {
+      setAviso(await redefinirSenha(tokenRedefinicao, novaSenha, confirmarNova));
+      onTokenConsumido?.();
+      aplicarSessao(null, null);
+      setNovaSenha("");
+      setConfirmarNova("");
+      setTela("entrar");
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível redefinir a senha.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function abrirSessoes() {
+    abrirTela("sessoes");
+    setEnviando(true);
+    try {
+      setSessoes(await listarSessoes());
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível carregar as sessões.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function aoEncerrarSessao(id: string, atual: boolean) {
+    if (!csrf) {
+      return;
+    }
+    setEnviando(true);
+    setErro(null);
+    try {
+      await encerrarSessao(csrf, id);
+      if (atual) {
+        aplicarSessao(null, null);
+        restaurarVisitante();
+        fechar();
+        return;
+      }
+      setSessoes(await listarSessoes());
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível encerrar a sessão.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function aoEncerrarOutras() {
+    if (!csrf) {
+      return;
+    }
+    setEnviando(true);
+    setErro(null);
+    try {
+      await encerrarOutrasSessoes(csrf);
+      setSessoes(await listarSessoes());
+      setAviso("As outras sessões foram encerradas.");
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível encerrar as outras sessões.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function aoEncerrarTodas() {
+    if (!csrf) {
+      return;
+    }
+    setEnviando(true);
+    setErro(null);
+    try {
+      await encerrarTodasSessoes(csrf);
+      aplicarSessao(null, null);
+      restaurarVisitante();
+      fechar();
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível encerrar as sessões.");
+      setEnviando(false);
+    }
+  }
+
+  async function abrirPrivacidade() {
+    abrirTela("privacidade");
+    setEnviando(true);
+    try {
+      const [contaPrivacidade, descricao] = await Promise.all([lerPrivacidade(), lerPanorama()]);
+      setPrivacidade(contaPrivacidade);
+      setPanorama(descricao);
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível carregar as informações de privacidade.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function aoBaixarDados() {
+    setEnviando(true);
+    setErro(null);
+    try {
+      await baixarDados();
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível preparar os seus dados.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function aoExcluirConta() {
+    if (!csrf || confirmacaoExclusao !== "EXCLUIR") {
+      setErro("Digite EXCLUIR para confirmar.");
+      return;
+    }
+    setEnviando(true);
+    setErro(null);
+    try {
+      await excluirConta(csrf, senhaAtual, confirmacaoExclusao);
+      aplicarSessao(null, null);
+      trocarFoto(null);
+      restaurarVisitante();
+      setSenhaAtual("");
+      setConfirmacaoExclusao("");
+      fechar();
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível excluir a conta.");
+      setEnviando(false);
+    }
   }
 
   async function escolherAvatar(codigo: string) {
@@ -414,7 +651,7 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
                 )}
                 <button type="submit" className={botaoCheio} disabled={enviando || !contasDisponiveis}>{tela === "entrar" ? "Entrar" : "Criar conta"}</button>
                 {tela === "entrar" && (
-                  <button type="button" className="text-sm underline" onClick={() => void avisoRecuperacao().then(setAviso).then(() => setTela("recuperar"))}>Esqueci minha senha</button>
+                  <button type="button" className="text-sm underline" onClick={() => { setErro(null); setAviso(correioConfigurado ? null : "O envio de e-mail ainda não está configurado. A recuperação de senha permanece pendente."); setTela("recuperar"); }}>Esqueci minha senha</button>
                 )}
                 <button type="button" className="text-sm underline" onClick={() => abrirTela(tela === "entrar" ? "cadastrar" : "entrar")}>
                   {tela === "entrar" ? "Criar conta" : "Entrar"}
@@ -427,7 +664,15 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
             )}
             {tela === "recuperar" && (
               <div className="mt-4 grid gap-3 text-sm leading-6">
-                <p>{aviso ?? "O envio de e-mail ainda não está configurado. A recuperação de senha permanece pendente."}</p>
+                {correioConfigurado ? (
+                  <>
+                    <p>Informe o e-mail da conta. Se ele não tiver cadastro, a resposta é a mesma. Nenhuma senha é enviada.</p>
+                    <label className="text-sm">E-mail<input className={campo} type="email" value={emailRecuperacao} onChange={(evento) => setEmailRecuperacao(evento.target.value)} autoComplete="email" /></label>
+                    <button type="button" className={botaoCheio} disabled={enviando} onClick={() => void pedirRedefinicao(emailRecuperacao).then(setAviso).catch((falha: unknown) => setErro(falha instanceof Error ? falha.message : "Não foi possível enviar a redefinição."))}>Enviar link</button>
+                  </>
+                ) : (
+                  <p>{aviso ?? "O envio de e-mail ainda não está configurado. A recuperação de senha permanece pendente."}</p>
+                )}
                 <button type="button" className="text-left underline" onClick={() => abrirTela("entrar")}>Voltar ao login</button>
                 <button type="button" className="text-left text-[#5c5c5c] underline dark:text-white/70" onClick={fechar}>Continuar sem entrar</button>
               </div>
@@ -511,9 +756,126 @@ export function MenuConta({ perfil, tema, onPerfil, onTema, onSessao }: Propried
             {tela === "conta" && usuario && (
               <div className="mt-4 grid gap-3 text-sm leading-6">
                 <p>E-mail da conta: {usuario.email}</p>
-                <p>A troca de e-mail fica pendente até existir um fluxo de confirmação. O endereço não pode ser alterado por aqui.</p>
+                {usuario.confirmacao_motivo === "conta_anterior" && (
+                  <p>Este endereço foi cadastrado antes da confirmação por e-mail. Nenhum e-mail de confirmação foi enviado por isso.</p>
+                )}
+                {usuario.confirmacao_motivo === "link" && <p>E-mail confirmado pelo link.</p>}
+                {!usuario.email_confirmado && (
+                  <>
+                    <p>O e-mail ainda não foi confirmado. A pesquisa jurídica continua disponível sem esta confirmação.</p>
+                    <button
+                      type="button"
+                      className="min-h-11 text-left underline"
+                      disabled={enviando}
+                      onClick={() => {
+                        setErro(null);
+                        void reenviarConfirmacao(usuario.email)
+                          .then(setAviso)
+                          .catch((falha: unknown) => setErro(falha instanceof Error ? falha.message : "Não foi possível reenviar a confirmação."));
+                      }}
+                    >
+                      Reenviar confirmação
+                    </button>
+                  </>
+                )}
+                <p>A troca de e-mail continua pendente. O endereço não pode ser alterado por aqui.</p>
                 <p>As conversas feitas na conta ficam salvas e aparecem nos aparelhos em que você entrar. As deste navegador só entram na conta se você confirmar a importação.</p>
-                <button type="button" className="text-left underline" onClick={() => abrirTela("perfil")}>Editar perfil e avatar</button>
+                <button type="button" className="min-h-11 text-left underline" onClick={() => abrirTela("perfil")}>Editar perfil e avatar</button>
+                <button type="button" className="min-h-11 text-left underline" onClick={() => abrirTela("senha")}>Alterar senha</button>
+                <button type="button" className="min-h-11 text-left underline" onClick={() => void abrirSessoes()}>Gerenciar sessões</button>
+                <button type="button" className="min-h-11 text-left underline" onClick={() => void abrirPrivacidade()}>Privacidade e dados</button>
+              </div>
+            )}
+            {tela === "senha" && (
+              <div className="mt-4 grid gap-3">
+                <label className="text-sm">Senha atual<input className={campo} type={mostrarSenha ? "text" : "password"} value={senhaAtual} onChange={(evento) => setSenhaAtual(evento.target.value)} autoComplete="current-password" /></label>
+                <label className="text-sm">Nova senha<input className={campo} type={mostrarSenha ? "text" : "password"} value={novaSenha} onChange={(evento) => setNovaSenha(evento.target.value)} autoComplete="new-password" minLength={8} /></label>
+                <label className="text-sm">Confirmar nova senha<input className={campo} type={mostrarSenha ? "text" : "password"} value={confirmarNova} onChange={(evento) => setConfirmarNova(evento.target.value)} autoComplete="new-password" minLength={8} /></label>
+                <button type="button" className="text-left text-sm underline" onClick={() => setMostrarSenha((atual) => !atual)}>{mostrarSenha ? "Ocultar senhas" : "Mostrar senhas"}</button>
+                <button type="button" className={botaoCheio} disabled={enviando} onClick={() => void aoAlterarSenha()}>Salvar nova senha</button>
+                <button type="button" className="min-h-11 text-sm underline" onClick={() => abrirTela("conta")}>Voltar</button>
+              </div>
+            )}
+            {tela === "confirmar" && (
+              <div className="mt-4 grid gap-3 text-sm leading-6">
+                <p>{enviando ? "Confirmando o e-mail…" : aviso ?? "O link de confirmação vale 24 horas e só pode ser usado uma vez."}</p>
+                <button type="button" className="min-h-11 text-left underline" onClick={() => abrirTela(usuario ? "conta" : "entrar")}>Voltar</button>
+              </div>
+            )}
+            {tela === "redefinir" && (
+              <div className="mt-4 grid gap-3">
+                <p className="text-sm leading-6">Escolha uma nova senha. O link vale por 30 minutos e só pode ser usado uma vez.</p>
+                <label className="text-sm">Nova senha<input className={campo} type={mostrarSenha ? "text" : "password"} value={novaSenha} onChange={(evento) => setNovaSenha(evento.target.value)} autoComplete="new-password" minLength={8} /></label>
+                <label className="text-sm">Confirmar nova senha<input className={campo} type={mostrarSenha ? "text" : "password"} value={confirmarNova} onChange={(evento) => setConfirmarNova(evento.target.value)} autoComplete="new-password" minLength={8} /></label>
+                <button type="button" className={botaoCheio} disabled={enviando || !tokenRedefinicao} onClick={() => void aoRedefinir()}>Redefinir senha</button>
+              </div>
+            )}
+            {tela === "sessoes" && (
+              <div className="mt-4 grid gap-3 text-sm leading-6">
+                {sessoes.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-black/10 px-3 py-2 dark:border-white/15">
+                    <p>
+                      {item.atual ? "Este navegador" : "Outro aparelho"}
+                      <span className="block text-xs text-[#5c5c5c] dark:text-white/70">Desde {dataDaSessao(item.criada_em)}</span>
+                    </p>
+                    <button type="button" className="min-h-11 shrink-0 underline" disabled={enviando} onClick={() => void aoEncerrarSessao(item.id, item.atual)}>Encerrar</button>
+                  </div>
+                ))}
+                <button type="button" className="min-h-11 text-left underline" disabled={enviando} onClick={() => void aoEncerrarOutras()}>Encerrar outras sessões</button>
+                <button type="button" className="min-h-11 text-left text-[#9f1239] underline" disabled={enviando} onClick={() => void aoEncerrarTodas()}>Encerrar todas as sessões</button>
+                <button type="button" className="min-h-11 text-left underline" onClick={() => abrirTela("conta")}>Voltar</button>
+              </div>
+            )}
+            {tela === "privacidade" && (
+              <div className="mt-4 grid gap-3 text-sm leading-6">
+                <p>Aqui você consulta, corrige o que a conta permite, baixa uma cópia e exclui os dados da conta. Isto não declara conformidade com a LGPD.</p>
+                <p>
+                  {panorama?.contato
+                    ? `Canal de privacidade: ${panorama.contato}.`
+                    : "O canal de contato desta instalação ainda não foi configurado."}
+                </p>
+                <p>
+                  {panorama?.controlador
+                    ? `Responsável informado: ${panorama.controlador}.`
+                    : "O responsável pelo tratamento ainda não foi identificado."}
+                </p>
+                <button type="button" className="min-h-11 text-left underline" onClick={() => abrirTela("perfil")}>Corrigir nome, avatar e perfil</button>
+                <button
+                  type="button"
+                  className="min-h-11 text-left underline"
+                  onClick={() => {
+                    fechar();
+                    onAbrirDocumento?.("privacidade");
+                  }}
+                >
+                  Ler a política de privacidade
+                </button>
+                <p className="font-medium">Será apagado com a conta</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  {(privacidade?.apagados ?? []).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+                <p className="font-medium">Não fica guardado na conta</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  {(privacidade?.nao_armazenados ?? []).map((item) => <li key={item}>{item}</li>)}
+                </ul>
+                <p>{privacidade?.retencao}</p>
+                <p>{privacidade?.treinamento}</p>
+                <p>Ao pesquisar, a pergunta atual é enviada ao Google Gemini. As anteriores não vão junto.</p>
+                {panorama?.direitos.map((item) => <p key={item}>{item}</p>)}
+                <PainelArmazenamento />
+                <button type="button" className={botaoCheio} disabled={enviando} onClick={() => void aoBaixarDados()}>Baixar meus dados</button>
+                <button type="button" className="min-h-11 text-left text-[#9f1239] underline" onClick={() => abrirTela("excluir")}>Excluir conta</button>
+                <button type="button" className="min-h-11 text-left underline" onClick={() => abrirTela("conta")}>Voltar</button>
+              </div>
+            )}
+            {tela === "excluir" && (
+              <div className="mt-4 grid gap-3 text-sm leading-6">
+                <p>A exclusão apaga o perfil, a foto, as conversas da conta, as referências salvas e as sessões. Digite EXCLUIR e a senha atual para confirmar.</p>
+                <p>{privacidade?.retencao}</p>
+                <label className="text-sm">Senha atual<input className={campo} type="password" value={senhaAtual} onChange={(evento) => setSenhaAtual(evento.target.value)} autoComplete="current-password" /></label>
+                <label className="text-sm">Confirmação<input className={campo} value={confirmacaoExclusao} onChange={(evento) => setConfirmacaoExclusao(evento.target.value)} autoComplete="off" aria-label="Digite EXCLUIR" /></label>
+                <button type="button" className="min-h-11 rounded-full bg-[#9f1239] text-sm font-medium text-white disabled:opacity-60" disabled={enviando || confirmacaoExclusao !== "EXCLUIR"} onClick={() => void aoExcluirConta()}>Excluir minha conta</button>
+                <button type="button" className="min-h-11 text-left underline" onClick={() => abrirTela("privacidade")}>Voltar</button>
               </div>
             )}
             {erro && <p role="alert" className="mt-3 text-sm text-[#9f1239]">{erro}</p>}
@@ -531,5 +893,11 @@ function tituloDaTela(tela: Tela, usuario: UsuarioConta | null): string {
   if (tela === "perfil") return "Meu perfil";
   if (tela === "conta") return "Configurações da conta";
   if (tela === "recuperar") return "Esqueci minha senha";
+  if (tela === "senha") return "Alterar senha";
+  if (tela === "redefinir") return "Nova senha";
+  if (tela === "confirmar") return "Confirmar e-mail";
+  if (tela === "sessoes") return "Sessões";
+  if (tela === "privacidade") return "Privacidade e dados";
+  if (tela === "excluir") return "Excluir conta";
   return usuario ? usuario.nome_exibicao : "Conta";
 }
