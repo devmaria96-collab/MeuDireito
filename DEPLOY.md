@@ -4,6 +4,25 @@ Este guia prepara a instalação. Ele não faz deploy, não cria serviço na Ver
 
 O repositório previsto é `devmaria96-collab/MeuDireito`. Nada neste arquivo autoriza enviar o código ou colocar o sistema na internet.
 
+## Demonstração de portfólio
+
+A demonstração é o modo `AMBIENTE=demonstracao`. Ela não substitui o desenvolvimento local. Com esse valor:
+
+- A pesquisa jurídica, a consulta ao Planalto e as referências verificáveis continuam sem login.
+- O cadastro, o login e o PostgreSQL de contas ficam desligados. Nenhuma migração roda, mesmo que `DATABASE_URL` exista.
+- Cada acesso pode fazer 15 pesquisas ao Gemini em 24 horas, com no máximo 8 a cada 10 minutos. O conjunto dos acessos para em 300 pesquisas em 24 horas. Os nomes são `COTA_GEMINI_POR_IP`, `COTA_GEMINI_RAJADA` e `COTA_GEMINI_GLOBAL`.
+- O contador fica na memória do processo. No plano gratuito da Render ele zera quando o serviço dorme ou reinicia.
+- A interface mostra “Versão experimental — Projeto de portfólio”, avisa que a resposta pode errar e pede para não escrever dado pessoal, informação sigilosa ou documento real.
+- “Enviar sugestão” grava só o texto, sem nome e sem e-mail. Um texto com `@` ou com 10 dígitos seguidos é recusado.
+
+O plano gratuito da Vercel serve o frontend. O plano gratuito da Render serve a API, com estas limitações conferidas na documentação em 19/11/2026: o serviço pode dormir após 15 minutos sem tráfego, tem 512 MB e não envia e-mail pelas portas 25, 465 ou 587. O disco é temporário, então a sugestão e a avaliação podem sumir no reinício. O PostgreSQL gratuito expira em 30 dias e não tem backup, por isso a demonstração não o usa.
+
+Arquivos prontos, sem segredo: `.env.demonstracao.example`, `frontend/.env.demonstracao.example` e `render.yaml`. Aplicar o `render.yaml` na Render cria o serviço. Isso não foi feito.
+
+Na Vercel, a raiz do projeto é `frontend`, o build é `npm run build` e a saída é `dist`. `VITE_API_URL` aponta para a origem HTTPS da API, sem caminho e sem credencial. Não defina `AMBIENTE=homologacao` nessa interface, senão o proxy pede a senha de homologação. Na API, `ORIGENS_PERMITIDAS` recebe a origem HTTPS da Vercel. `GEMINI_API_KEY` fica só no painel da Render.
+
+Nenhum plano pago foi contratado e nada foi publicado.
+
 ## O que já existe no código
 
 - A API sobe por `uvicorn app.main:app`. No desenvolvimento local o README usa `uvicorn app.main:app --reload`. Na Render o processo precisa escutar `0.0.0.0` e a porta `$PORT`.

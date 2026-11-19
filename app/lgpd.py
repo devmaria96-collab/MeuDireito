@@ -27,6 +27,19 @@ def _modelos() -> str:
 
 def pendencias_administrador() -> list[str]:
     """Lista o que falta configurar, sem inventar responsável, contato ou servidor."""
+    from app.homologacao import modo_demonstracao
+
+    if modo_demonstracao():
+        pendencias = [
+            "O cadastro está desligado nesta demonstração. Nenhum e-mail ou senha de conta é gravado."
+        ]
+        if not _limpo("CONTROLADOR_PRIVACIDADE"):
+            pendencias.append("CONTROLADOR_PRIVACIDADE não está definida. A demonstração não nomeia o responsável legal.")
+        if not _limpo("CONTATO_PRIVACIDADE"):
+            pendencias.append("CONTATO_PRIVACIDADE não está definida. A sugestão não é enviada para um e-mail.")
+        if not os.getenv("ORIGENS_PERMITIDAS", "").strip():
+            pendencias.append("ORIGENS_PERMITIDAS não tem o domínio da interface. O CORS aceita só o ambiente local.")
+        return pendencias
     pendencias = []
     if not _limpo("CONTROLADOR_PRIVACIDADE"):
         pendencias.append("CONTROLADOR_PRIVACIDADE não está definida. A política não nomeia o responsável.")
@@ -75,7 +88,7 @@ def panorama(requisicao_https: bool) -> dict[str, object]:
     contato = _limpo("CONTATO_PRIVACIDADE")
     controlador = _limpo("CONTROLADOR_PRIVACIDADE")
     smtp = _limpo("SMTP_HOST") if correio_configurado() else None
-    return {
+    corpo = {
         "conformidade_declarada": False,
         "aviso": "Este texto descreve o tratamento desta instalação. Ele não declara conformidade com a LGPD.",
         "controlador": controlador,
@@ -278,3 +291,66 @@ def panorama(requisicao_https: bool) -> dict[str, object]:
             "O canal publicado para os titulares é somente o configurado em CONTATO_PRIVACIDADE."
         ),
     }
+    from app.homologacao import modo_demonstracao
+
+    demonstracao = modo_demonstracao()
+    corpo["modo_demonstracao"] = demonstracao
+    corpo["identificacao"] = "Versão experimental — Projeto de portfólio" if demonstracao else None
+    corpo["aviso_demonstracao"] = (
+        "Esta instalação é uma demonstração gratuita de portfólio. Não há cadastro nem banco de contas. "
+        "A pesquisa segue sem login. A sugestão guarda só o texto escrito, sem nome e sem e-mail. "
+        "No plano gratuito da Render, o disco do serviço é temporário e a sugestão pode sumir quando o processo reinicia. "
+        "Não escreva dado pessoal, informação sigilosa ou documento jurídico real."
+        if demonstracao
+        else None
+    )
+    if demonstracao:
+        corpo["inventario"] = [
+            {
+                "categoria": "Pesquisa",
+                "dados": "A pergunta atual e o perfil de linguagem.",
+                "finalidade": "Responder a pesquisa jurídica da demonstração.",
+                "base_legal": "Não formalizada. Depende de o responsável validar a hipótese aplicável.",
+                "retencao": "Esta instalação não grava a pergunta. O histórico anterior não é enviado ao modelo.",
+                "armazenamento": "A pergunta vai ao Google Gemini no momento da consulta. Não fica em banco de contas.",
+            },
+            {
+                "categoria": "Legislação",
+                "dados": "O servidor baixa páginas públicas de planalto.gov.br.",
+                "finalidade": "Mostrar o texto oficial quando a página pode ser lida e, se houver texto, pedir uma explicação separada.",
+                "base_legal": "Não formalizada. Depende de o responsável validar a hipótese aplicável.",
+                "retencao": "A página pode ficar em cache na memória do processo por até uma hora.",
+                "armazenamento": "Memória do processo. A pergunta não é enviada como formulário ao Planalto.",
+            },
+            {
+                "categoria": "Histórico do visitante",
+                "dados": "Conversas guardadas no navegador, sem conta.",
+                "finalidade": "Continuar a pesquisa neste navegador, se a pessoa aceitar esse armazenamento.",
+                "base_legal": "Não formalizada. O armazenamento no navegador é opcional.",
+                "retencao": "Até a pessoa apagar o histórico, recusar o armazenamento ou limpar os dados do site.",
+                "armazenamento": "localStorage do navegador. Não há cópia no servidor.",
+            },
+            {
+                "categoria": "Sugestão",
+                "dados": "Somente o texto da sugestão, com no máximo 500 caracteres. Nome, e-mail e telefone são recusados.",
+                "finalidade": "Receber uma ideia de melhoria da demonstração.",
+                "base_legal": "Não formalizada. Depende de o responsável validar a hipótese aplicável.",
+                "retencao": "O arquivo permanece enquanto o disco do processo existir. No plano gratuito da Render ele pode ser apagado a cada reinício.",
+                "armazenamento": "Arquivo local dados/sugestoes.jsonl, sem identificador da pessoa.",
+            },
+            {
+                "categoria": "Avaliação da resposta",
+                "dados": "Somente positiva ou negativa e, se negativa, um motivo de uma lista fixa.",
+                "finalidade": "Registrar a qualidade percebida, sem o texto da conversa.",
+                "base_legal": "Não formalizada. Depende de o responsável validar a hipótese aplicável.",
+                "retencao": "O arquivo permanece enquanto o disco do processo existir.",
+                "armazenamento": "Arquivo local dados/feedback.jsonl.",
+            },
+        ]
+        corpo["direitos"] = [
+            "A pesquisa não exige conta e não gera um cadastro para consultar ou corrigir.",
+            "O histórico do navegador pode ser apagado nas configurações ou na limpeza do site.",
+            "Não há exportação de conta porque nenhuma conta é criada nesta demonstração.",
+            "Oposição, revisão humana e reclamação não têm fluxo dentro do aplicativo e não há canal publicado enquanto CONTATO_PRIVACIDADE estiver vazio.",
+        ]
+    return corpo

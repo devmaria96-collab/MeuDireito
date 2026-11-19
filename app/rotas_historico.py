@@ -110,6 +110,9 @@ async def perguntar(entrada: PerguntaConta, pedido: Request) -> dict[str, object
         except ValueError as erro:
             raise HTTPException(status_code=422, detail=str(erro)) from None
 
+        from app.cota_gemini import exigir_cota_gemini
+
+        exigir_cota_gemini(pedido.client.host if pedido.client else "local")
         carregar_chave_gemini()
         if not os.getenv("GEMINI_API_KEY"):
             raise HTTPException(

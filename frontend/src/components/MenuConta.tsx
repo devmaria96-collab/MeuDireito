@@ -77,6 +77,7 @@ export function MenuConta({ perfil, tema, tokenRedefinicao, tokenConfirmacao, on
   const [foto, setFoto] = useState<string | null>(null);
   const [contasDisponiveis, setContasDisponiveis] = useState(true);
   const [correioConfigurado, setCorreioConfigurado] = useState(false);
+  const [demonstracao, setDemonstracao] = useState(false);
   const [emailRecuperacao, setEmailRecuperacao] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -152,6 +153,7 @@ export function MenuConta({ perfil, tema, tokenRedefinicao, tokenConfirmacao, on
       }
       setContasDisponiveis(sessao.contas_disponiveis);
       setCorreioConfigurado(sessao.correio_configurado);
+      setDemonstracao(sessao.demonstracao);
       if (sessao.usuario && sessao.csrf) {
         guardarVisitante();
         aplicarPreferencias(sessao.usuario);
@@ -569,10 +571,10 @@ export function MenuConta({ perfil, tema, tokenRedefinicao, tokenConfirmacao, on
         type="button"
         onClick={() => abrirTela(usuario ? "menu" : "menu")}
         className="inline-flex min-h-11 items-center gap-2 rounded-full px-2 text-sm text-black hover:bg-black/5 dark:text-white dark:hover:bg-white/10"
-        aria-label={usuario ? `Conta de ${usuario.nome_exibicao}` : "Entrar ou criar conta"}
+        aria-label={usuario ? `Conta de ${usuario.nome_exibicao}` : demonstracao ? "Pesquisa sem conta" : "Entrar ou criar conta"}
       >
         {rosto}
-        <span className="hidden sm:inline">{usuario ? usuario.nome_exibicao : "Entrar"}</span>
+        <span className="hidden sm:inline">{usuario ? usuario.nome_exibicao : demonstracao ? "Sem conta" : "Entrar"}</span>
       </button>
       {aberto && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4" role="presentation">
@@ -597,12 +599,18 @@ export function MenuConta({ perfil, tema, tokenRedefinicao, tokenConfirmacao, on
                 <X size={18} />
               </button>
             </div>
-            {!contasDisponiveis && (
+            {demonstracao ? (
               <p className="mt-3 text-sm leading-6">
-                O cadastro fica indisponível enquanto o banco de contas não está no ar. A pesquisa continua aberta sem login.
+                Esta é uma versão experimental de portfólio. O cadastro fica desligado porque não há banco de contas nesta demonstração. A pesquisa continua aberta, sem login.
               </p>
+            ) : (
+              !contasDisponiveis && (
+                <p className="mt-3 text-sm leading-6">
+                  O cadastro fica indisponível enquanto o banco de contas não está no ar. A pesquisa continua aberta sem login.
+                </p>
+              )
             )}
-            {tela === "menu" && !usuario && (
+            {!demonstracao && tela === "menu" && !usuario && (
               <div className="mt-4 grid gap-2">
                 <button type="button" className={botaoCheio} onClick={() => abrirTela("entrar")}>Entrar</button>
                 <button type="button" className="min-h-11 rounded-full border border-black/15 text-sm dark:border-white/20" onClick={() => abrirTela("cadastrar")}>Criar conta</button>
@@ -616,7 +624,7 @@ export function MenuConta({ perfil, tema, tokenRedefinicao, tokenConfirmacao, on
                 <button type="button" className="min-h-11 rounded-xl px-3 text-left text-sm text-[#9f1239]" onClick={() => void aoSair()}>Sair</button>
               </div>
             )}
-            {(tela === "entrar" || tela === "cadastrar") && (
+            {!demonstracao && (tela === "entrar" || tela === "cadastrar") && (
               <form
                 className="mt-4 grid gap-3"
                 onSubmit={(evento) => {
@@ -662,7 +670,7 @@ export function MenuConta({ perfil, tema, tokenRedefinicao, tokenConfirmacao, on
                 </p>
               </form>
             )}
-            {tela === "recuperar" && (
+            {!demonstracao && tela === "recuperar" && (
               <div className="mt-4 grid gap-3 text-sm leading-6">
                 {correioConfigurado ? (
                   <>

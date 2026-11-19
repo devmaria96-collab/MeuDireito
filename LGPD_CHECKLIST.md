@@ -21,10 +21,11 @@ A política pública sai de `GET /lgpd`. Ela não recebe nome, e-mail ou chave u
 - Pendências de configuração aparecem na política e no log de subida, sem dados pessoais.
 - `NOME_COMERCIAL` pode mostrar um nome comercial. Ele não preenche `CONTROLADOR_PRIVACIDADE`.
 - Com `AMBIENTE=homologacao`, a interface e a API exigem uma senha de acesso guardada só no ambiente. Sem o cookie da API, a pesquisa não chama o Gemini. Em desenvolvimento e em produção essa trava fica desligada.
+- Com `AMBIENTE=demonstracao`, a pesquisa continua sem conta e o cadastro fica desligado. Há limite de chamadas ao Gemini e uma sugestão sem nome nem e-mail.
 
 ## Testado
 
-Em 19 de novembro de 2026, 72 testes de backend terminaram OK. `npm run build` no frontend também terminou sem erro. Os testes incluem, com contas de teste:
+Em 19 de novembro de 2026, 77 testes de backend terminaram OK. `npm run build` no frontend também terminou sem erro. Os testes incluem, com contas de teste:
 
 - Exportação JSON e exclusão da conta, sem atingir outra conta.
 - Exclusão de conversas e isolamento entre usuários.
@@ -34,6 +35,7 @@ Em 19 de novembro de 2026, 72 testes de backend terminaram OK. `npm run build` n
 - A política sem responsável e sem contato configurados, e sem a chave da API.
 - A escolha de armazenamento local: gravar, ler de novo e, ao recusar, apagar histórico e tema deste navegador.
 - A homologação: sem o cookie, a pesquisa, a legislação e a minuta não chamam o Gemini; com o cookie, a conta de teste confirma o estado pendente do e-mail, a recuperação não simula envio, uma conta não lê a conversa da outra e a exclusão não derruba a outra sessão. O banco local de desenvolvimento é recusado como destino de migração. O nome comercial Tavares Web não vira controlador nem contato.
+- A demonstração: o cadastro responde que está desligado, a pesquisa de teste continua, a cota impede a terceira chamada ao modelo e a sugestão com e-mail não é gravada. O desenvolvimento local ainda cria conta de teste.
 
 `alembic heads` mostrou `20261119_0006` e não aplicou migração no banco de desenvolvimento. `python -m app.migrar_homologacao` recusou esse mesmo banco. Nenhuma conta real foi excluída. Não houve deploy nem envio ao GitHub.
 

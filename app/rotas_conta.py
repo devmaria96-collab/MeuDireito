@@ -40,6 +40,7 @@ from app.contas import (
     texto_privacidade,
 )
 from app.correio import correio_configurado, enviar_confirmacao, enviar_redefinicao, link_de_confirmacao, link_de_redefinicao
+from app.homologacao import modo_demonstracao
 from app.publicacao import cookie_samesite, cookie_seguro
 from app.limite import consumir
 from app.modelos import Sessao as SessaoModelo
@@ -73,6 +74,11 @@ class PerfilEntrada(BaseModel):
 
 
 def _banco() -> Session:
+    if modo_demonstracao():
+        raise HTTPException(
+            status_code=403,
+            detail="O cadastro fica desligado nesta demonstração. A pesquisa continua aberta, sem conta.",
+        )
     if not contas_disponiveis():
         raise HTTPException(status_code=503, detail="As contas estão indisponíveis neste momento. A pesquisa continua aberta.")
     return exigir_fabrica()()
@@ -121,6 +127,7 @@ def _publico(usuario: Usuario, csrf: str | None) -> dict[str, object]:
             "confirmacao_motivo": usuario.confirmacao_motivo,
         },
         "correio_configurado": correio_configurado(),
+        "demonstracao": modo_demonstracao(),
     }
 
 
@@ -147,6 +154,7 @@ def ler_sessao(pedido: Request) -> dict[str, object]:
             "csrf": None,
             "usuario": None,
             "correio_configurado": correio_configurado(),
+            "demonstracao": modo_demonstracao(),
         }
     db = _banco()
     try:
@@ -159,6 +167,7 @@ def ler_sessao(pedido: Request) -> dict[str, object]:
                 "csrf": None,
                 "usuario": None,
                 "correio_configurado": correio_configurado(),
+                "demonstracao": modo_demonstracao(),
             }
         return _publico(encontrada.usuario, encontrada.csrf)
     finally:

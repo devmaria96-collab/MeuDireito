@@ -4,10 +4,11 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 interface PropriedadesEntrada {
   enviando: boolean;
   solto?: boolean;
+  experimental?: boolean;
   onEnviar: (pergunta: string) => void;
 }
 
-export function ChatInput({ enviando, solto = false, onEnviar }: PropriedadesEntrada) {
+export function ChatInput({ enviando, solto = false, experimental = false, onEnviar }: PropriedadesEntrada) {
   const [texto, setTexto] = useState("");
   const [celular, setCelular] = useState(false);
   const campo = useRef<HTMLTextAreaElement>(null);
@@ -86,6 +87,7 @@ export function ChatInput({ enviando, solto = false, onEnviar }: PropriedadesEnt
       <p className="mx-auto mt-2 max-w-3xl text-center text-xs leading-5 text-muted">
         {celular ? "Use o botão para enviar. " : "Enter envia. Shift + Enter quebra a linha. "}
         Ao enviar, esta pergunta e o perfil de linguagem vão para o Google Gemini. As mensagens anteriores não vão junto.
+        {experimental && " A resposta usa inteligência artificial e pode errar. Não escreva dado pessoal, informação sigilosa ou documento jurídico real."}
       </p>
     </form>
   );

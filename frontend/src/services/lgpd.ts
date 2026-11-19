@@ -41,6 +41,9 @@ export interface PanoramaLgpd {
   treinamento: string;
   incidentes: string;
   pendencias_administrador: string[];
+  modo_demonstracao: boolean;
+  identificacao: string | null;
+  aviso_demonstracao: string | null;
   gemini: {
     provedor: string;
     enviado: string[];
@@ -81,6 +84,9 @@ export async function lerPanorama(): Promise<PanoramaLgpd> {
     pendencias_administrador: Array.isArray(corpo.pendencias_administrador)
       ? corpo.pendencias_administrador.filter((item): item is string => typeof item === "string")
       : [],
+    modo_demonstracao: corpo.modo_demonstracao === true,
+    identificacao: texto(corpo.identificacao),
+    aviso_demonstracao: texto(corpo.aviso_demonstracao),
     gemini: geminiDe(corpo.gemini),
   };
 }

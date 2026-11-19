@@ -1,0 +1,28 @@
+# Preparação da API de demonstração. Aplicar este arquivo na Render cria o serviço.
+# Este repositório não aplica o arquivo sozinho.
+
+services:
+  - type: web
+    name: meu-direito-demonstracao
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /saude
+    envVars:
+      - key: AMBIENTE
+        value: demonstracao
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ORIGENS_PERMITIDAS
+        sync: false
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: COTA_GEMINI_POR_IP
+        value: "15"
+      - key: COTA_GEMINI_GLOBAL
+        value: "300"
+      - key: COTA_GEMINI_RAJADA
+        value: "8"
+      - key: NOME_COMERCIAL
+        value: Tavares Web

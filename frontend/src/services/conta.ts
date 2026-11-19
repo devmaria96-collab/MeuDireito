@@ -19,6 +19,7 @@ export interface SessaoConta {
   csrf: string | null;
   usuario: UsuarioConta | null;
   correio_configurado: boolean;
+  demonstracao: boolean;
   confirmacao_enviada?: boolean;
   confirmacao_mensagem?: string;
 }
@@ -60,6 +61,7 @@ function sessaoDe(corpo: unknown): SessaoConta {
     csrf: typeof bruto.csrf === "string" ? bruto.csrf : null,
     usuario: usuarioDe(bruto.usuario),
     correio_configurado: bruto.correio_configurado === true,
+    demonstracao: bruto.demonstracao === true,
     confirmacao_enviada: bruto.confirmacao_enviada === true,
     confirmacao_mensagem: typeof bruto.confirmacao_mensagem === "string" ? bruto.confirmacao_mensagem : undefined,
   };
@@ -76,7 +78,7 @@ export async function lerSessao(): Promise<SessaoConta> {
   const resposta = await fetch(`${URL_API}/conta/sessao`, { credentials: "include" });
   const corpo = (await lerJson(resposta)) as Partial<SessaoConta> | null;
   if (!resposta.ok || !corpo) {
-    return { autenticado: false, contas_disponiveis: false, csrf: null, usuario: null, correio_configurado: false };
+    return { autenticado: false, contas_disponiveis: false, csrf: null, usuario: null, correio_configurado: false, demonstracao: false };
   }
   return sessaoDe(corpo);
 }

@@ -14,11 +14,14 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
 
 from app.agente import carregar_chave_gemini, explicar_consulta, responder
-from app.banco import preparar_banco
+from app.banco import contas_disponiveis, preparar_banco
+from app.cota_gemini import cotas_publicas, exigir_cota_gemini
 from app.rotas_conta import router as rotas_conta
 from app.rotas_historico import router as rotas_historico
 from app.consulta_legislacao import ResultadoConsulta, consultar
 from app.feedback import registrar_feedback
+from app.homologacao import ambiente, modo_demonstracao
+from app.sugestoes import registrar_sugestao
 from app.legislacao import AVISO_SEM_CONSULTA, FONTES_OFICIAIS
 from app.limite import consumir
 from app.minutas import (
@@ -137,6 +140,10 @@ class ReferenciaSaida(BaseModel):
 class RespostaSaida(BaseModel):
     resposta: str
     referencias: list[ReferenciaSaida] = Field(default_factory=list)
+
+
+def _origem(pedido: Request) -> str:
+    return pedido.client.host if pedido.client else "local"
 
 
 def _exigir_limite(pedido: Request) -> None:
@@ -343,6 +350,7 @@ async def consultar_legislacao_endpoint(
     explicacao: str | None = None
     aviso_explicacao: str | None = None
     if resultado.verificada and resultado.texto_oficial:
+        exigir_cota_gemini(_origem(pedido))
         try:
             explicacao = await explicar_consulta(resultado.como_texto(), entrada.perfil)
         except Exception as erro:
@@ -413,6 +421,7 @@ class ExportarDocumentoEntrada(BaseModel):
 async def gerar_documento(entrada: GerarDocumentoEntrada, pedido: Request) -> DocumentoGeradoSaida:
     """Elabora uma minuta com o Gemini a partir dos campos revistos pela pessoa."""
     _exigir_limite(pedido)
+    exigir_cota_gemini(_origem(pedido))
     carregar_chave_gemini()
     if not os.getenv("GEMINI_API_KEY"):
         raise HTTPException(
@@ -502,6 +511,7 @@ def _referencia_de(item: ResultadoConsulta) -> ReferenciaSaida:
 async def conversar(entrada: PerguntaEntrada, pedido: Request) -> RespostaSaida:
     """Recebe uma pergunta e devolve a resposta do agente."""
     _exigir_limite(pedido)
+    exigir_cota_gemini(_origem(pedido))
     carregar_chave_gemini()
     if not os.getenv("GEMINI_API_KEY"):
         raise HTTPException(
@@ -541,4 +551,38 @@ async def receber_feedback(entrada: FeedbackEntrada, pedido: Request) -> Respons
     except ValueError as erro:
         raise HTTPException(status_code=422, detail="Não foi possível registrar a avaliação.") from erro
     logger.info("Avaliação registrada: %s", entrada.avaliacao)
+    return Response(status_code=204)
+
+
+class SugestaoEntrada(BaseModel):
+    texto: str = Field(min_length=5, max_length=500)
+
+
+@app.get("/modo")
+def ler_modo() -> dict[str, object]:
+    demonstracao = modo_demonstracao()
+    return {
+        "ambiente": ambiente(),
+        "demonstracao": demonstracao,
+        "cadastro_disponivel": contas_disponiveis(),
+        "identificacao": "Versão experimental — Projeto de portfólio" if demonstracao else None,
+        "cotas_gemini": cotas_publicas(),
+    }
+
+
+@app.post("/sugestoes", status_code=204)
+def receber_sugestao(entrada: SugestaoEntrada, pedido: Request) -> Response:
+    """Guarda só o texto da sugestão. Não pede nome, e-mail nem a pesquisa."""
+    if not consumir(f"sugestao:{_origem(pedido)}", limite=5, janela=3600):
+        raise HTTPException(status_code=429, detail="Muitas sugestões em pouco tempo. Aguarde um pouco.")
+    try:
+        registrar_sugestao(entrada.texto)
+    except ValueError as erro:
+        if str(erro) == "pessoal":
+            raise HTTPException(
+                status_code=422,
+                detail="Não inclua e-mail, telefone ou documento. A sugestão não pede identificação.",
+            ) from None
+        raise HTTPException(status_code=422, detail="Escreva uma sugestão entre 5 e 500 caracteres.") from None
+    logger.info("Sugestão registrada.")
     return Response(status_code=204)

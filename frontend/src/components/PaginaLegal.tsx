@@ -50,7 +50,9 @@ function Politica({ panorama, erro }: { panorama: PanoramaLgpd | null; erro: str
     <article className="mt-4 space-y-6 text-sm leading-6">
       <header>
         <h1 className="text-2xl font-semibold">Política de Privacidade</h1>
+        {panorama?.identificacao && <p className="mt-2 text-sm">{panorama.identificacao}</p>}
         <p className="mt-2">{panorama?.aviso ?? "A descrição do tratamento é carregada do servidor desta instalação."}</p>
+        {panorama?.aviso_demonstracao && <p className="mt-2">{panorama.aviso_demonstracao}</p>}
       </header>
       {erro && <p role="alert">{erro}</p>}
       {panorama && (
@@ -188,12 +190,18 @@ function Termos({ panorama, erro }: { panorama: PanoramaLgpd | null; erro: strin
     <article className="mt-4 space-y-4 text-sm leading-6">
       <header>
         <h1 className="text-2xl font-semibold">Termos de Uso</h1>
+        {panorama?.identificacao && <p className="mt-2">{panorama.identificacao}</p>}
         <p className="mt-2">
           O Meu Direito é uma ferramenta de informação e pesquisa jurídica assistida por inteligência artificial. Não é advogado, não representa a pessoa e não substitui a orientação de um profissional habilitado.
         </p>
       </header>
       {erro && <p role="alert">{erro}</p>}
-      <p>A pesquisa funciona sem cadastro. A conta é opcional e serve para guardar histórico, perfil e sessões.</p>
+      {panorama?.aviso_demonstracao && <p>{panorama.aviso_demonstracao}</p>}
+      <p>
+        {panorama?.modo_demonstracao
+          ? "Nesta demonstração a pesquisa funciona sem cadastro. Criar conta fica desligado porque não há persistência segura das contas."
+          : "A pesquisa funciona sem cadastro. A conta é opcional e serve para guardar histórico, perfil e sessões."}
+      </p>
       <p>
         As respostas podem errar, ficar desatualizadas ou não confirmar a vigência de uma norma. Lei, súmula e jurisprudência só podem ser tratadas como verificadas quando a própria resposta disser que a fonte foi lida. Tribunais não são consultados.
       </p>

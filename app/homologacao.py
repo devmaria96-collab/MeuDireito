@@ -61,7 +61,13 @@ def ambiente() -> str:
         return "homologacao"
     if valor in {"producao", "produção", "prod"}:
         return "producao"
+    if valor in {"demonstracao", "demonstração", "demo"}:
+        return "demonstracao"
     return "invalido"
+
+
+def modo_demonstracao() -> bool:
+    return ambiente() == "demonstracao"
 
 
 def acesso_exigido() -> bool:

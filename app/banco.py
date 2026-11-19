@@ -31,6 +31,10 @@ def url_do_banco() -> str:
 
 
 def contas_disponiveis() -> bool:
+    from app.homologacao import modo_demonstracao
+
+    if modo_demonstracao():
+        return False
     return _disponivel and _fabrica is not None
 
 
@@ -51,8 +55,16 @@ def preparar_banco() -> None:
     if not url:
         _disponivel = False
         return
-    from app.homologacao import migracao_de_postgres_permitida, url_normalizada
+    from app.homologacao import migracao_de_postgres_permitida, modo_demonstracao, url_normalizada
 
+    if modo_demonstracao():
+        logger.info("Modo demonstração: contas desligadas e nenhuma migração será executada.")
+        if _engine is not None:
+            _engine.dispose()
+        _engine = None
+        _fabrica = None
+        _disponivel = False
+        return
     if url.startswith(("postgres://", "postgresql://", "postgresql+")):
         url = url_normalizada(url)
         permitida, motivo = migracao_de_postgres_permitida(url)

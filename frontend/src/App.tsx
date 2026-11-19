@@ -4,6 +4,7 @@ import { AvisoArmazenamento } from "./components/AvisoArmazenamento.tsx";
 import { MenuConta } from "./components/MenuConta.tsx";
 import { PaginaLegal } from "./components/PaginaLegal.tsx";
 import { RodapeLegal } from "./components/RodapeLegal.tsx";
+import { FormularioSugestao } from "./components/FormularioSugestao.tsx";
 import { BotaoMenu, Sidebar } from "./components/Sidebar.tsx";
 import { ConsultaLegislacao } from "./components/ConsultaLegislacao.tsx";
 import { ChatInput } from "./components/ChatInput.tsx";
@@ -66,6 +67,8 @@ export default function App() {
   const [erroImportacao, setErroImportacao] = useState<string | null>(null);
   const [conexao, setConexao] = useState<Conexao>("verificando");
   const [documento, setDocumento] = useState<"privacidade" | "termos" | null>(lerDocumento);
+  const [experimental, setExperimental] = useState(false);
+  const [sugestaoAberta, setSugestaoAberta] = useState(false);
 
   function abrirDocumento(pagina: "privacidade" | "termos") {
     const parametros = new URLSearchParams(window.location.search);
@@ -82,6 +85,25 @@ export default function App() {
     window.history.pushState({}, "", consulta ? `${window.location.pathname}?${consulta}` : window.location.pathname);
     setDocumento(null);
   }
+
+  useEffect(() => {
+    let ativo = true;
+    void fetch(`${URL_API}/modo`, { credentials: "include" })
+      .then(async (resposta) => (resposta.ok ? ((await resposta.json()) as { demonstracao?: unknown }) : null))
+      .then((corpo) => {
+        if (ativo) {
+          setExperimental(corpo?.demonstracao === true);
+        }
+      })
+      .catch(() => {
+        if (ativo) {
+          setExperimental(false);
+        }
+      });
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   useEffect(() => {
     const aoVoltar = () => setDocumento(lerDocumento());
@@ -318,8 +340,8 @@ export default function App() {
             onSugestao={(pergunta) => void enviar(pergunta, { titulo: pergunta })}
           >
             <SeletorPerfil perfil={perfil} onMudar={mudarPerfil} solto />
-            <ChatInput enviando={enviando} solto onEnviar={(pergunta) => void enviar(pergunta)} />
-            <RodapeLegal onAbrir={abrirDocumento} />
+            <ChatInput enviando={enviando} solto experimental={experimental} onEnviar={(pergunta) => void enviar(pergunta)} />
+            <RodapeLegal onAbrir={abrirDocumento} experimental={experimental} onSugestao={() => setSugestaoAberta(true)} />
           </ChatWindow>
         ) : (
           <>
@@ -342,8 +364,8 @@ export default function App() {
             <div className="px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
               <div className="mx-auto w-full max-w-3xl">
                 <SeletorPerfil perfil={perfil} onMudar={mudarPerfil} solto />
-                <ChatInput enviando={enviando} solto onEnviar={(pergunta) => void enviar(pergunta)} />
-                <RodapeLegal onAbrir={abrirDocumento} />
+                <ChatInput enviando={enviando} solto experimental={experimental} onEnviar={(pergunta) => void enviar(pergunta)} />
+                <RodapeLegal onAbrir={abrirDocumento} experimental={experimental} onSugestao={() => setSugestaoAberta(true)} />
               </div>
             </div>
           </>
@@ -402,7 +424,9 @@ export default function App() {
         </div>
       )}
 
-      {consultaAberta && <ConsultaLegislacao perfil={perfil} onFechar={() => setConsultaAberta(false)} />}
+      {consultaAberta && <ConsultaLegislacao perfil={perfil} experimental={experimental} onFechar={() => setConsultaAberta(false)} />}
+
+      {sugestaoAberta && <FormularioSugestao onFechar={() => setSugestaoAberta(false)} />}
 
       {fontesAbertas && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-navy/50 p-4" role="presentation">

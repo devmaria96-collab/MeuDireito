@@ -11,10 +11,11 @@ const EXEMPLOS = [
 
 interface PropriedadesConsulta {
   perfil: Perfil;
+  experimental?: boolean;
   onFechar: () => void;
 }
 
-export function ConsultaLegislacao({ perfil, onFechar }: PropriedadesConsulta) {
+export function ConsultaLegislacao({ perfil, experimental = false, onFechar }: PropriedadesConsulta) {
   const [consulta, setConsulta] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -66,6 +67,7 @@ export function ConsultaLegislacao({ perfil, onFechar }: PropriedadesConsulta) {
         </div>
         <p className="mt-2 text-sm leading-6 text-ink dark:text-slate-200">
           A leitura é feita no Portal da Legislação do Planalto. A pergunta não é enviada como formulário a esse site. Se o texto for encontrado, a explicação vai ao Google Gemini e fica separada do texto oficial.
+          {experimental && " A explicação pode errar. Não escreva dado pessoal, informação sigilosa ou documento jurídico real."}
         </p>
         <form onSubmit={aoEnviar} className="mt-4 flex gap-2">
           <label htmlFor="consulta-legislacao" className="sr-only">
